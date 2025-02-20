@@ -1,0 +1,186 @@
+- hosts: all
+  vars:
+    edk2_repo: "https://github.com/tianocore/edk2.git"
+    edk2_version: "edk2-stable202208"
+    standard_lib_url: "https://github.com/uchan-nos/mikanos-build/releases/download/v2.0/x86_64-elf.tar.gz"
+  tasks:
+    - name: Install development tools (Debian)
+      become: yes
+      apt:
+        name:
+          - build-essential
+          - llvm-14-dev
+          - lld-14
+          - clang-14
+          - nasm
+          - acpica-tools
+          - uuid-dev
+          - qemu-system-x86
+          - qemu-utils
+          - xauth
+          - unzip
+          - python3-distutils
+          - ca-certificates
+        state: latest
+        install_recommends: no
+      when: ansible_os_family == "Debian"
+
+    - name: Check whether qemu-system-gui exists (Debian)
+      command: dpkg-query --show qemu-system-gui
+      failed_when: False
+      changed_when: False
+      register: qemu_gui_result
+      when: ansible_os_family == "Debian"
+
+    - name: Install qemu-system-gui package if available (Debian)
+      become: yes
+      apt:
+        name: qemu-system-gui
+        state: latest
+        install_recommends: no
+      when:
+        - ansible_os_family == "Debian"
+        - qemu_gui_result.rc == 0
+
+    - name: Set LLVM 14 as default using alternatives (Debian)
+      become: yes
+      alternatives:
+        name: "{{ item }}"
+        link: "/usr/bin/{{ item }}"
+        path: "/usr/bin/{{ item }}-14"
+      with_items:
+        - llvm-PerfectShuffle
+        - llvm-ar
+        - llvm-as
+        - llvm-bcanalyzer
+        - llvm-cat
+        - llvm-cfi-verify
+        - llvm-config
+        - llvm-cov
+        - llvm-c-test
+        - llvm-cvtres
+        - llvm-cxxdump
+        - llvm-cxxfilt
+        - llvm-diff
+        - llvm-dis
+        - llvm-dlltool
+        - llvm-dwarfdump
+        - llvm-dwp
+        - llvm-exegesis
+        - llvm-extract
+        - llvm-lib
+        - llvm-link
+        - llvm-lto
+        - llvm-lto2
+        - llvm-mc
+        - llvm-mca
+        - llvm-modextract
+        - llvm-mt
+        - llvm-nm
+        - llvm-objcopy
+        - llvm-objdump
+        - llvm-opt-report
+        - llvm-pdbutil
+        - llvm-profdata
+        - llvm-ranlib
+        - llvm-rc
+        - llvm-readelf
+        - llvm-readobj
+        - llvm-rtdyld
+        - llvm-size
+        - llvm-split
+        - llvm-stress
+        - llvm-strings
+        - llvm-strip
+        - llvm-symbolizer
+        - llvm-tblgen
+        - llvm-undname
+        - llvm-xray
+        - ld.lld
+        - lld-link
+        - clang
+        - clang++
+        - clang-cpp
+      when: ansible_os_family == "Debian"
+
+    # ─── macOS (ARM Mac) 전용 작업 ──────────────────────────────
+    - name: Ensure Homebrew is installed (macOS)
+      when: ansible_os_family == "Darwin"
+      block:
+        - name: Check if Homebrew exists
+          stat:
+            path: /opt/homebrew/bin/brew
+          register: brew_path
+
+        - name: Install Homebrew if not present
+          when: not brew_path.stat.exists
+          become: no
+          shell: '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+          args:
+            creates: /opt/homebrew/bin/brew
+
+    - name: Install required packages via Homebrew (macOS)
+      when: ansible_os_family == "Darwin"
+      homebrew:
+        name:
+          - llvm@14    # Homebrew formula for LLVM 14
+          - nasm
+          - qemu       # qemu (macOS에서는 별도 qemu-system-gui 없음)
+          - unzip
+          - gnu-tar
+          - dosfstools
+          - acpica
+        state: present
+
+    # clang-14 를 기본적으로 사용하도록 설정한다.
+    - name: Configure PATH to use Homebrew LLVM (macOS)
+      when: ansible_os_family == "Darwin"
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.profile"
+        regexp: '^export PATH=.*llvm@14/bin'
+        line: 'export PATH="/opt/homebrew/opt/llvm@14/bin:$PATH"'
+
+    #- name: Force link llvm@14
+    #  shell: brew link --overwrite --force llvm@14
+    #  args:
+    #    warn: false
+
+
+    # ─── 공통 작업: EDK II 및 표준 라이브러리 ──────────────────────────────
+    - name: Clone EDK II repository
+      git:
+        repo: "{{ edk2_repo }}"
+        dest: "{{ devenv_dir }}/edk2"
+        version: "{{ edk2_version }}"
+
+    - name: Build EDK II base tools
+      make:
+        chdir: "{{ devenv_dir }}/edk2/BaseTools/Source/C"
+
+    - name: Download standard libraries
+      unarchive:
+        src: "{{ standard_lib_url }}"
+        dest: "{{ devenv_dir }}/"
+        remote_src: yes
+
+    # ─── WSL 전용 DISPLAY 설정은 Ubuntu (WSL)에서만 적용 ──────────────────────────────
+    - name: Configure display variable if WSL1 (Debian)
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.profile"
+        regexp: "^export DISPLAY="
+        line: "export DISPLAY=:0"
+      when:
+        - ansible_os_family == "Debian"
+        - "'DISPLAY' not in ansible_env"
+        - "'WSLENV' in ansible_env"
+        - "'WSL_INTEROP' not in ansible_env"
+
+    - name: Configure display variable if WSL2 (Debian)
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.profile"
+        regexp: "^export DISPLAY="
+        line: "export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0"
+      when:
+        - ansible_os_family == "Debian"
+        - "'DISPLAY' not in ansible_env"
+        - "'WSL_INTEROP' in ansible_env"
