@@ -26,7 +26,7 @@ cd ~/Project/edk2
 ```
 
 #### If RegisterFilterLib is not found occurs when building the MikanLoaderPkg
-```text
+```sh
 (...): error 4000: Instance of library class [RegisterFilterLib] is not found
 
 $ find . -name "RegisterFilterLib*.inf"
@@ -38,7 +38,7 @@ $ vi MikanLoaderPkg/MikanLoaderPkg.dsc
 ```
 
 #### If error occurs when building OVMF
-```text
+```sh
 which mtoc
 /opt/homebrew/bin/mtoc
 
@@ -46,7 +46,7 @@ vi Conf/tools_def.txt
 *_XCODE5_*_MTOC_PATH      = /opt/homebrew/bin/mtoc
 ```
 
-```text
+```sh
 vi Conf/tools_def.txt
 RELEASE_XCODE5_X64_CC_FLAGS   = ... -Wno-unused-but-set-variable -Wno-unused-but-set-parameter
 
