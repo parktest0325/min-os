@@ -1,6 +1,7 @@
 - hosts: all
   vars:
     edk2_repo: "https://github.com/tianocore/edk2.git"
+    #edk2_version: "edk2-stable202502"
     edk2_version: "edk2-stable202208"
     standard_lib_url: "https://github.com/uchan-nos/mikanos-build/releases/download/v2.0/x86_64-elf.tar.gz"
   tasks:
@@ -115,16 +116,16 @@
           - dosfstools
           - acpica
           - mtoc
-          #- llvm@14    # Homebrew formula for LLVM 14
+          - llvm@14    # Homebrew formula for LLVM 14
         state: present
 
-    # clang-14 를 기본적으로 사용하도록 설정한다. (필요없음)
-    #- name: Configure PATH to use Homebrew LLVM (macOS)
-    #  when: ansible_os_family == "Darwin"
-    #  lineinfile:
-    #    path: "{{ ansible_env.HOME }}/.zprofile"
-    #    regexp: '^export PATH=.*llvm@14/bin'
-    #    line: 'export PATH="/opt/homebrew/opt/llvm@14/bin:$PATH"'
+    # clang-14 를 기본적으로 사용하도록 설정한다.
+    - name: Configure PATH to use Homebrew LLVM (macOS)
+      when: ansible_os_family == "Darwin"
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.zprofile"
+        regexp: '^export PATH=.*llvm@14/bin'
+        line: 'export PATH="/opt/homebrew/opt/llvm@14/bin:$PATH"'
 
     #- name: Force link llvm@14
     #  shell: brew link --overwrite --force llvm@14
