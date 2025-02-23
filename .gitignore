@@ -1,3 +1,5 @@
 devenv/**/
 devenv/OVMF_*
+devenv/OVMF.fd
+devenv/disk.img
 osbook

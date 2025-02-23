@@ -104,41 +104,27 @@
       when: ansible_os_family == "Debian"
 
     # ─── macOS (ARM Mac) 전용 작업 ──────────────────────────────
-    - name: Ensure Homebrew is installed (macOS)
-      when: ansible_os_family == "Darwin"
-      block:
-        - name: Check if Homebrew exists
-          stat:
-            path: /opt/homebrew/bin/brew
-          register: brew_path
-
-        - name: Install Homebrew if not present
-          when: not brew_path.stat.exists
-          become: no
-          shell: '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-          args:
-            creates: /opt/homebrew/bin/brew
-
     - name: Install required packages via Homebrew (macOS)
       when: ansible_os_family == "Darwin"
       homebrew:
         name:
-          - llvm@14    # Homebrew formula for LLVM 14
           - nasm
           - qemu       # qemu (macOS에서는 별도 qemu-system-gui 없음)
           - unzip
           - gnu-tar
           - dosfstools
           - acpica
+          - mtoc
+          #- llvm@14    # Homebrew formula for LLVM 14
         state: present
 
-    # clang-14 를 기본적으로 사용하도록 설정한다.
-    - name: Configure PATH to use Homebrew LLVM (macOS)
-      when: ansible_os_family == "Darwin"
-      lineinfile:
-        path: "{{ ansible_env.HOME }}/.profile"
-        regexp: '^export PATH=.*llvm@14/bin'
-        line: 'export PATH="/opt/homebrew/opt/llvm@14/bin:$PATH"'
+    # clang-14 를 기본적으로 사용하도록 설정한다. (필요없음)
+    #- name: Configure PATH to use Homebrew LLVM (macOS)
+    #  when: ansible_os_family == "Darwin"
+    #  lineinfile:
+    #    path: "{{ ansible_env.HOME }}/.zprofile"
+    #    regexp: '^export PATH=.*llvm@14/bin'
+    #    line: 'export PATH="/opt/homebrew/opt/llvm@14/bin:$PATH"'
 
     #- name: Force link llvm@14
     #  shell: brew link --overwrite --force llvm@14
