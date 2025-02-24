@@ -1,30 +1,51 @@
 # min-os
+mini OS from MikanOS (M1 Mac, WSL Ubuntu)
 
-## Dev Setting for Mac
-https://dongkim.dev/posts/project/archive/system/min_os/1_build_setting/#%ed%8c%a8%ed%82%a4%ec%a7%80-%eb%b9%8c%eb%93%9c
+<br>
+
+## Dev Setting
 ```sh
+# path: ~
 git clone git@github.com:parktest0325/min-os.git
 git clone https://github.com/uchan-nos/mikanos.git
 
-cd min-os/setup/
-./setup_for_mac.sh
+cd ~/mikanos
+git checkout osbook_day02a
+
+# path: ~/min-os/setup/
+./ubuntu_setup.sh
+./mac_setup.sh
 ```
 
-#### build UEFI and run_qemu
+#### WSL Qemu X-server
+install `https://sourceforge.net/projects/vcxsrv/` 
+
+
+<br>
+
+## build and run_qemu.sh
 ```sh
-cd ../devenv/edk2 
-source ./edksetup.sh
-ln -s ~/Project/mikanos/MikanLoaderPkg ./
-build -p MikanLoaderPkg/MikanLoaderPkg.dsc -a X64 -t CLANGDWARF -b RELEASE
-cp Build/MikanLoaderX64/RELEASE_CLANGDWARF/X64/Loader.efi ~/Project/
+# path: min-os/devenv/edk2
+ln -s ../../mikanos/MikanLoaderPkg ./
 
+## Ubuntu (WSL)
+build -p OvmfPkg/OvmfPkgX64.dsc -a X64 -t CLANG38 -b RELEASE
+build -p MikanLoaderPkg/MikanLoaderPkg.dsc -a X64 -t CLANG38 -b RELEASE
+cp Build/OvmfX64/RELEASE_CLANG38/FV/OVMF_* ../
+cp Build/MikanLoaderX64/RELEASE_CLANG38/X64/Loader.efi ../
+./run_qemu.sh ../Loader.efi
+
+## MacOS
 build -p OvmfPkg/OvmfPkgX64.dsc -a X64 -t XCODE5 -b RELEASE
+build -p MikanLoaderPkg/MikanLoaderPkg.dsc -a X64 -t CLANGDWARF -b RELEASE
 cp Build/OvmfX64/RELEASE_XCODE5/FV/OVMF_* ../
-
-cd ~/Project/edk2
-./run_qemu.sh ../../Loader.efi
+cp Build/MikanLoaderX64/RELEASE_CLANGDWARF/X64/Loader.efi ../
+./run_qemu.sh ../Loader.efi
 ```
 
+<br>
+
+## Oh.. Error occured..
 #### If RegisterFilterLib is not found occurs when building the MikanLoaderPkg
 ```sh
 (...): error 4000: Instance of library class [RegisterFilterLib] is not found
