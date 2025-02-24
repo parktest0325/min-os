@@ -8,9 +8,7 @@ DEVENV_DIR="$GITROOT_DIR/devenv"
 # 에러 발생 시 스크립트 중단
 # set -e
 
-#/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-brew install git
-brew install ansible
+sudo apt install ansible
 
 # input sudo password!!
 ansible-playbook -K -e "devenv_dir=${DEVENV_DIR}" -i "ansible_inventory" "ansible_provision.yml"

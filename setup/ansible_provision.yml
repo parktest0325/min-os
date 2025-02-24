@@ -5,6 +5,9 @@
     edk2_version: "edk2-stable202208"
     standard_lib_url: "https://github.com/uchan-nos/mikanos-build/releases/download/v2.0/x86_64-elf.tar.gz"
   tasks:
+    - name: Show all environment variables
+      debug:
+        var: ansible_env
     - name: Install development tools (Debian)
       become: yes
       apt:
