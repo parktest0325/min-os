@@ -46,7 +46,7 @@ cp Build/MikanLoaderX64/RELEASE_CLANGDWARF/X64/Loader.efi ../
 <br>
 
 ## Oh.. Error occured..
-#### If RegisterFilterLib is not found occurs when building the MikanLoaderPkg
+#### If RegisterFilterLib is not found occurs when building the MikanLoaderPkg (Both)
 ```sh
 (...): error 4000: Instance of library class [RegisterFilterLib] is not found
 
@@ -58,7 +58,7 @@ $ vi MikanLoaderPkg/MikanLoaderPkg.dsc
   RegisterFilterLib|MdePkg/Library/RegisterFilterLibNull/RegisterFilterLibNull.inf
 ```
 
-#### If error occurs when building OVMF
+#### If error occurs when building OVMF (Mac)
 ```sh
 which mtoc
 /opt/homebrew/bin/mtoc
