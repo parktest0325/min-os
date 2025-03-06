@@ -2,4 +2,6 @@ devenv/**/
 devenv/OVMF_*
 devenv/OVMF.fd
 devenv/disk.img
+kernel/kernel.elf
+kernel/*.o
 osbook
