@@ -13,6 +13,7 @@ make -C ./BaseTools/Source/C
 # Setting Build target
 TARGET_ARCH=X64
 TARGET=RELEASE
+BUILD_FOLDER=../build
 
 if [ "$1" == "ovmf" ]; then
   PLATFORM=Ovmf
@@ -55,4 +56,5 @@ build
 
 
 # Copy build file
-cp Build/${PLATFORM}${TARGET_ARCH}/${TARGET}_${TOOL_CHAIN_TAG}/${CP_TARGET} ../
+mkdir -p ${BUILD_FOLDER}
+cp Build/${PLATFORM}${TARGET_ARCH}/${TARGET}_${TOOL_CHAIN_TAG}/${CP_TARGET} ${BUILD_FOLDER}

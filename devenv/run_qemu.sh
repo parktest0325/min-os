@@ -9,7 +9,7 @@ fi
 DEVENV_DIR=$(dirname "$0")
 EFI_FILE=$1
 ANOTHER_FILE=$2
-DISK_IMG=./disk.img
+DISK_IMG=./build/disk.img
 MOUNT_POINT=./mnt
 
 $DEVENV_DIR/make_image.sh $DISK_IMG $MOUNT_POINT $EFI_FILE $ANOTHER_FILE
