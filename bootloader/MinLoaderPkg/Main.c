@@ -169,6 +169,34 @@ EFI_STATUS EFIAPI UefiMain(
   Print(L"Kernel: 0x%0lx (%lu bytes)\n", kernel_base_addr, kernel_file_size);
   // #@@range_end(read_kernel)
 
+  // #@@range_begin(stop_bootservice)
+  EFI_STATUS status;
+  status = gBS->ExitBootServices(image_handle, memmap.map_key);
+  if (EFI_ERROR(status)) {
+    status = GetMemoryMap(&memmap);
+    if (EFI_ERROR(status)) {
+      Print(L"failed to get memory map: %r\n", status);
+      while (1);
+    }
+    status = gBS->ExitBootServices(image_handle, memmap.map_key);
+    if (EFI_ERROR(status)) {
+      Print(L"Could not exit boot service: %r\n", status);
+      while (1);
+    }
+  }
+  // #@@range_end(stop_bootservice)
+
+
+  // #@@range_begin(run_kernel)
+  UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
+
+  typedef void EntryPointType(void);
+  EntryPointType* entry_point = (EntryPointType*)entry_addr;
+  entry_point();
+  // #@@range_end(run_kernel)
+
+
+
   Print(L"All done\n");
 
   while (1);
