@@ -12,5 +12,6 @@ ANOTHER_FILE=$2
 DISK_IMG=./build/disk.img
 MOUNT_POINT=./mnt
 
+$DEVENV_DIR/make_kernel.sh
 $DEVENV_DIR/make_image.sh $DISK_IMG $MOUNT_POINT $EFI_FILE $ANOTHER_FILE
 $DEVENV_DIR/run_image.sh $DISK_IMG

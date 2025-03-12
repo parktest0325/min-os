@@ -11,6 +11,7 @@ DISK_IMG=$1
 MOUNT_POINT=$2
 EFI_FILE=$3
 ANOTHER_FILE=$4
+KERNEL_FILE=${DEVENV_DIR}/build/kernel.elf
 
 if [ ! -f $EFI_FILE ]
 then
@@ -28,6 +29,7 @@ mkfs.fat -n 'MIKAN OS' -s 2 -f 2 -R 32 -F 32 $DISK_IMG
 $DEVENV_DIR/mount_image.sh $DISK_IMG $MOUNT_POINT
 sudo mkdir -p $MOUNT_POINT/EFI/BOOT
 sudo cp $EFI_FILE $MOUNT_POINT/EFI/BOOT/BOOTX64.EFI
+sudo cp $KERNEL_FILE $MOUNT_POINT/kernel.elf
 if [ "$ANOTHER_FILE" != "" ]
 then
     sudo cp $ANOTHER_FILE $MOUNT_POINT/
