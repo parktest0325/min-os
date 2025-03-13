@@ -9,10 +9,9 @@ cd edk2
 
 make -C ./BaseTools/Source/C
 
-
 # Setting Build target
 TARGET_ARCH=X64
-TARGET=RELEASE
+TARGET=DEBUG
 BUILD_FOLDER=../build
 
 if [ "$1" == "ovmf" ]; then
@@ -23,7 +22,7 @@ else
   PLATFORM=MinLoader
   CP_TARGET="${TARGET_ARCH}/Loader.efi"
 
-  if [ ! -d "./${PLATFORM}Pkg"]; then
+  if [ ! -d "./${PLATFORM}Pkg" ]; then
     ln -s "../../bootloader/${PLATFORM}Pkg" ./
   fi
   ACTIVE_PLATFORM="${PLATFORM}Pkg/${PLATFORM}Pkg.dsc"
@@ -52,7 +51,9 @@ sed -i "/TOOL_CHAIN_TAG/ s:= .*$:= ${TOOL_CHAIN_TAG}:" Conf/target.txt
 sed -i '/CLANG38/ s/-flto//' Conf/tools_def.txt
 sed -i '/MTOC_PATH/ s:= .*$:= /opt/homebrew/bin/mtoc:' Conf/tools_def.txt
 
+rm -rf Build/${PLATFORM}${TARGET_ARCH}/
 build
+
 
 
 # Copy build file
