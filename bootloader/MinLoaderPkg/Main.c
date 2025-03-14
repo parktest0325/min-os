@@ -2,6 +2,8 @@
 #include  <Library/UefiLib.h>
 #include  <Library/UefiBootServicesTableLib.h>
 #include  <Library/PrintLib.h>
+#include  <Library/MemoryAllocationLib.h>
+
 #include  <Protocol/LoadedImage.h>
 #include  <Protocol/SimpleFileSystem.h>
 #include  <Protocol/DiskIo2.h>
@@ -91,7 +93,7 @@ EFI_STATUS SaveMemoryMap(struct MemoryMap* map, EFI_FILE_PROTOCOL* file) {
     DEBUG((DEBUG_INFO, buf));
 
     AsciiStrToUnicodeStrS(buf, unicode_buf, sizeof(unicode_buf) / sizeof(CHAR16));
-    Print(L"%s", unicode_buf);
+    //Print(L"%s", unicode_buf);
     file->Write(file, &len, buf);
   }
 
@@ -124,10 +126,66 @@ EFI_STATUS OpenRootDir(EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root) {
   return EFI_SUCCESS;
 }
 
+EFI_STATUS OpenGOP(EFI_HANDLE image_handle,
+                   EFI_GRAPHICS_OUTPUT_PROTOCOL** gop) {
+  UINTN num_gop_handles = 0;
+  EFI_HANDLE* gop_handles = NULL;
+  gBS->LocateHandleBuffer(
+      ByProtocol,
+      &gEfiGraphicsOutputProtocolGuid,
+      NULL,
+      &num_gop_handles,
+      &gop_handles);
+
+  gBS->OpenProtocol(
+      gop_handles[0],
+      &gEfiGraphicsOutputProtocolGuid,
+      (VOID**)gop,
+      image_handle,
+      NULL,
+      EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+
+  FreePool(gop_handles);
+
+  return EFI_SUCCESS;
+}
+
+const CHAR16* GetPixelFormatUnicode(EFI_GRAPHICS_PIXEL_FORMAT fmt) {
+  switch (fmt) {
+    case PixelRedGreenBlueReserved8BitPerColor:
+      return L"PixelRedGreenBlueReserved8BitPerColor";
+    case PixelBlueGreenRedReserved8BitPerColor:
+      return L"PixelBlueGreenRedReserved8BitPerColor";
+    case PixelBitMask:
+      return L"PixelBitMask";
+    case PixelBltOnly:
+      return L"PixelBltOnly";
+    case PixelFormatMax:
+      return L"PixelFormatMax";
+    default:
+      return L"InvalidPixelFormat";
+  }
+}
+
 EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
     EFI_SYSTEM_TABLE* system_table) {
   Print(L"Hello, Mikan World!\n");
+  EFI_STATUS status;
+  EFI_LOADED_IMAGE_PROTOCOL *LoadedImage = NULL;
+      status = gBS->OpenProtocol(
+                  image_handle,
+                  &gEfiLoadedImageProtocolGuid,
+                  (VOID **) &LoadedImage,
+                  image_handle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR(status)) {
+    Print(L"OpenProtocol (LoadedImage) Failed: %r\n", status);
+    return status;
+  }
+  Print(L"Base = %p\n", LoadedImage->ImageBase);
 
   // #@@range_begin(main)
   CHAR8 memmap_buf[4096 * 4];
@@ -145,6 +203,22 @@ EFI_STATUS EFIAPI UefiMain(
   SaveMemoryMap(&memmap, memmap_file);
   memmap_file->Close(memmap_file);
   // #@@range_end(main)
+
+
+  // #@@range_begin(draw)
+  EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
+  OpenGOP(image_handle, &gop);
+  Print(L"Resolution: %ux%u, Pixel Format: %s, %u pixels/line\n",
+    gop->Mode->Info->HorizontalResolution,
+    gop->Mode->Info->VerticalResolution,
+    GetPixelFormatUnicode(gop->Mode->Info->PixelFormat),
+    gop->Mode->Info->PixelsPerScanLine);
+  Print(L"Frame Buffer: 0x%0lx - 0x%0lx, Size: %lu bytes\n",
+    gop->Mode->FrameBufferBase,
+    gop->Mode->FrameBufferBase + gop->Mode->FrameBufferSize,
+    gop->Mode->FrameBufferSize);
+  // #@@range_end(draw)
+
 
   // #@@range_begin(read_kernel)
   EFI_FILE_PROTOCOL* kernel_file;
@@ -165,7 +239,13 @@ EFI_STATUS EFIAPI UefiMain(
   gBS->AllocatePages(
       AllocateAddress, EfiLoaderData,
       (kernel_file_size + 0xfff) / 0x1000, &kernel_base_addr);
-  kernel_file->Read(kernel_file, &kernel_file_size, (VOID*)kernel_base_addr);
+  status = kernel_file->Read(kernel_file, &kernel_file_size, (VOID*)kernel_base_addr);
+  if (EFI_ERROR(status)) {
+    Print(L"AllocatePages failed! Status: %r\n", status);
+    Halt();
+  } else {
+    Print(L"Allocated at: 0x%lx\n", kernel_base_addr);
+  }
   Print(L"Kernel: 0x%0lx (%lu bytes)\n", kernel_base_addr, kernel_file_size);
   // #@@range_end(read_kernel)
 
@@ -176,12 +256,12 @@ EFI_STATUS EFIAPI UefiMain(
     status = GetMemoryMap(&memmap);
     if (EFI_ERROR(status)) {
       Print(L"failed to get memory map: %r\n", status);
-      while (1);
+      Halt();
     }
     status = gBS->ExitBootServices(image_handle, memmap.map_key);
     if (EFI_ERROR(status)) {
       Print(L"Could not exit boot service: %r\n", status);
-      while (1);
+      Halt();
     }
   }
   // #@@range_end(stop_bootservice)
@@ -190,11 +270,10 @@ EFI_STATUS EFIAPI UefiMain(
   // #@@range_begin(run_kernel)
   UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
 
-  typedef void EntryPointType(void);
+  typedef void EntryPointType(UINT64, UINT64);
   EntryPointType* entry_point = (EntryPointType*)entry_addr;
-  entry_point();
+  entry_point(gop->Mode->FrameBufferBase, gop->Mode->FrameBufferSize);
   // #@@range_end(run_kernel)
-
 
 
   Print(L"All done\n");
