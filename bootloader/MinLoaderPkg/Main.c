@@ -1,16 +1,18 @@
-#include  <Uefi.h>
-#include  <Library/UefiLib.h>
-#include  <Library/UefiBootServicesTableLib.h>
-#include  <Library/PrintLib.h>
-#include  <Library/MemoryAllocationLib.h>
+#include <Uefi.h>
+#include <Library/UefiLib.h>
+#include <Library/UefiBootServicesTableLib.h>
+#include <Library/PrintLib.h>
+#include <Library/MemoryAllocationLib.h>
 
-#include  <Protocol/LoadedImage.h>
-#include  <Protocol/SimpleFileSystem.h>
-#include  <Protocol/DiskIo2.h>
-#include  <Protocol/BlockIo.h>
-#include  <Guid/FileInfo.h>
+#include <Protocol/LoadedImage.h>
+#include <Protocol/SimpleFileSystem.h>
+#include <Protocol/DiskIo2.h>
+#include <Protocol/BlockIo.h>
+#include <Guid/FileInfo.h>
 
-#include  <Library/DebugLib.h>
+#include <Library/DebugLib.h>
+
+#include "elf.hpp"
 
 // #@@range_begin(struct_memory_map)
 struct MemoryMap {
@@ -104,49 +106,53 @@ EFI_STATUS SaveMemoryMap(struct MemoryMap* map, EFI_FILE_PROTOCOL* file) {
 EFI_STATUS OpenRootDir(EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root) {
   EFI_LOADED_IMAGE_PROTOCOL* loaded_image;
   EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
+  EFI_STATUS status;
 
-  gBS->OpenProtocol(
+  status = gBS->OpenProtocol(
       image_handle,
       &gEfiLoadedImageProtocolGuid,
       (VOID**)&loaded_image,
       image_handle,
       NULL,
       EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+  if (EFI_ERROR(status)) return status;
 
-  gBS->OpenProtocol(
+  status = gBS->OpenProtocol(
       loaded_image->DeviceHandle,
       &gEfiSimpleFileSystemProtocolGuid,
       (VOID**)&fs,
       image_handle,
       NULL,
       EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+  if (EFI_ERROR(status)) return status;
 
-  fs->OpenVolume(fs, root);
-
-  return EFI_SUCCESS;
+  return fs->OpenVolume(fs, root);
 }
 
 EFI_STATUS OpenGOP(EFI_HANDLE image_handle,
                    EFI_GRAPHICS_OUTPUT_PROTOCOL** gop) {
   UINTN num_gop_handles = 0;
   EFI_HANDLE* gop_handles = NULL;
-  gBS->LocateHandleBuffer(
+  EFI_STATUS status;
+
+  status = gBS->LocateHandleBuffer(
       ByProtocol,
       &gEfiGraphicsOutputProtocolGuid,
       NULL,
       &num_gop_handles,
       &gop_handles);
+  if (EFI_ERROR(status)) return status;
 
-  gBS->OpenProtocol(
+  status = gBS->OpenProtocol(
       gop_handles[0],
       &gEfiGraphicsOutputProtocolGuid,
       (VOID**)gop,
       image_handle,
       NULL,
       EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+  if (EFI_ERROR(status)) return status;
 
   FreePool(gop_handles);
-
   return EFI_SUCCESS;
 }
 
@@ -167,47 +173,66 @@ const CHAR16* GetPixelFormatUnicode(EFI_GRAPHICS_PIXEL_FORMAT fmt) {
   }
 }
 
+VOID Halt(void) {
+  while (1) __asm__("hlt");
+}
+
+VOID _IfErrorHalt(CHAR16* msg, EFI_STATUS status) {
+  if (EFI_ERROR(status)) {
+    Print(L"MSG: %s, Status: %r\n", msg, status);
+    Halt();
+  }
+}
+
 EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
     EFI_SYSTEM_TABLE* system_table) {
-  Print(L"Hello, Mikan World!\n");
+  Print(L"Hello, min-os World!\n");
   EFI_STATUS status;
   EFI_LOADED_IMAGE_PROTOCOL *LoadedImage = NULL;
-      status = gBS->OpenProtocol(
-                  image_handle,
-                  &gEfiLoadedImageProtocolGuid,
-                  (VOID **) &LoadedImage,
-                  image_handle,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
-  if (EFI_ERROR(status)) {
-    Print(L"OpenProtocol (LoadedImage) Failed: %r\n", status);
-    return status;
-  }
+  status = gBS->OpenProtocol(
+              image_handle,
+              &gEfiLoadedImageProtocolGuid,
+              (VOID **) &LoadedImage,
+              image_handle,
+              NULL,
+              EFI_OPEN_PROTOCOL_GET_PROTOCOL
+              );
+  _IfErrorHalt(L"OpenProtocol (LoadedImage) Failed", status);
   Print(L"Base = %p\n", LoadedImage->ImageBase);
 
   // #@@range_begin(main)
   CHAR8 memmap_buf[4096 * 4];
   struct MemoryMap memmap = {sizeof(memmap_buf), memmap_buf, 0, 0, 0, 0};
   GetMemoryMap(&memmap);
+  _IfErrorHalt(L"get memory map Failed", status);
 
   EFI_FILE_PROTOCOL* root_dir;
   OpenRootDir(image_handle, &root_dir);
+  _IfErrorHalt(L"OpenRootDir Failed", status);
 
   EFI_FILE_PROTOCOL* memmap_file;
   root_dir->Open(
       root_dir, &memmap_file, L"\\memmap",
       EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+  if (EFI_ERROR(status)) {
+    Print(L"failed to open file '\\memmap': %r\n", status);
+    Print(L"Ignored.\n");
+  } else {
+    status = SaveMemoryMap(&memmap, memmap_file);
+    _IfErrorHalt(L"SaveMemoryMap Failed", status);
 
-  SaveMemoryMap(&memmap, memmap_file);
-  memmap_file->Close(memmap_file);
+    memmap_file->Close(memmap_file);
+    _IfErrorHalt(L"close memory map Failed", status);
+  }
   // #@@range_end(main)
 
 
   // #@@range_begin(draw)
   EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
   OpenGOP(image_handle, &gop);
+  _IfErrorHalt(L"OpenGOP Failed", status);
+
   Print(L"Resolution: %ux%u, Pixel Format: %s, %u pixels/line\n",
     gop->Mode->Info->HorizontalResolution,
     gop->Mode->Info->VerticalResolution,
@@ -225,44 +250,37 @@ EFI_STATUS EFIAPI UefiMain(
   root_dir->Open(
       root_dir, &kernel_file, L"\\kernel.elf",
       EFI_FILE_MODE_READ, 0);
+  _IfErrorHalt(L"open file '\\kernel.elf' Failed", status);
 
   UINTN file_info_size = sizeof(EFI_FILE_INFO) + sizeof(CHAR16) * 12;
   UINT8 file_info_buffer[file_info_size];
   kernel_file->GetInfo(
       kernel_file, &gEfiFileInfoGuid,
       &file_info_size, file_info_buffer);
+  _IfErrorHalt(L"get file information Failed", status);
 
   EFI_FILE_INFO* file_info = (EFI_FILE_INFO*)file_info_buffer;
   UINTN kernel_file_size = file_info->FileSize;
+
 
   EFI_PHYSICAL_ADDRESS kernel_base_addr = 0x100000;
   gBS->AllocatePages(
       AllocateAddress, EfiLoaderData,
       (kernel_file_size + 0xfff) / 0x1000, &kernel_base_addr);
   status = kernel_file->Read(kernel_file, &kernel_file_size, (VOID*)kernel_base_addr);
-  if (EFI_ERROR(status)) {
-    Print(L"AllocatePages failed! Status: %r\n", status);
-    Halt();
-  } else {
-    Print(L"Allocated at: 0x%lx\n", kernel_base_addr);
-  }
+  _IfErrorHalt(L"AllocatePages failed!", status);
+
   Print(L"Kernel: 0x%0lx (%lu bytes)\n", kernel_base_addr, kernel_file_size);
   // #@@range_end(read_kernel)
 
   // #@@range_begin(stop_bootservice)
-  EFI_STATUS status;
   status = gBS->ExitBootServices(image_handle, memmap.map_key);
   if (EFI_ERROR(status)) {
     status = GetMemoryMap(&memmap);
-    if (EFI_ERROR(status)) {
-      Print(L"failed to get memory map: %r\n", status);
-      Halt();
-    }
+    _IfErrorHalt(L"failed to get memory map", status);
+
     status = gBS->ExitBootServices(image_handle, memmap.map_key);
-    if (EFI_ERROR(status)) {
-      Print(L"Could not exit boot service: %r\n", status);
-      Halt();
-    }
+    _IfErrorHalt(L"Could not exit boot service", status);
   }
   // #@@range_end(stop_bootservice)
 

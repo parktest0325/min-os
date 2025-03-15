@@ -51,7 +51,7 @@ sed -i "/TOOL_CHAIN_TAG/ s:= .*$:= ${TOOL_CHAIN_TAG}:" Conf/target.txt
 sed -i '/CLANG38/ s/-flto//' Conf/tools_def.txt
 sed -i '/MTOC_PATH/ s:= .*$:= /opt/homebrew/bin/mtoc:' Conf/tools_def.txt
 
-rm -rf Build/${PLATFORM}${TARGET_ARCH}/
+rm -rf Build/${PLATFORM}${TARGET_ARCH}/${TARGET}_${TOOL_CHAIN_TAG}/
 build
 
 
