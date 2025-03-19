@@ -1,14 +1,10 @@
 #!/usr/bin/python3
 
 import argparse
-import collections
 import functools
 import re
-import sys
 
-
-BITMAP_PATTERN = re.compile(r'([.*@]+)')
-
+BITMAP_PATTERN = re.compile(r'([.@]+)')
 
 def compile(src: str) -> bytes:
     src = src.lstrip()
@@ -25,7 +21,6 @@ def compile(src: str) -> bytes:
 
     return b''.join(result)
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('font', help='path to a font file')
@@ -35,7 +30,6 @@ def main():
     with open(ns.o, 'wb') as out, open(ns.font) as font:
         src = font.read()
         out.write(compile(src))
-
 
 if __name__ == '__main__':
     main()
