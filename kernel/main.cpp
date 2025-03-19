@@ -44,5 +44,8 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     WriteAscii(*pixel_writer, 8 * i, 50, c, {0, 0, 0});
   }
   WriteString(*pixel_writer, 20, 200, "HELLO WORLD!!", {255, 255, 255});
+  char buf[128];
+  sprintf(buf, "1+2=%d",1+2);
+  WriteString(*pixel_writer, 0, 300, buf, {255,255,255});
   while (1) __asm__("hlt");
 }

@@ -1,5 +1,5 @@
 TARGET = kernel.elf
-ELFLIBDIR = ../devenv/x86_64-elf/
+ELFLIBDIR = ../devenv/x86_64-elf
 EDK2DIR = ../devenv/edk2/
 
 RESOURCE_OBJ = hankaku.font
@@ -19,7 +19,7 @@ CPPFLAGS += -I$(ELFLIBDIR)/include/c++/v1 -I$(ELFLIBDIR)/include -I$(ELFLIBDIR)/
             -DEFIAPI='__attribute__((ms_abi))'
 
 LDFLAGS += --entry KernelMain -z norelro --image-base 0x100000 --static
-LDFLAGS += -L$(ELFLIBDIR)
+LDFLAGS += -L$(ELFLIBDIR)/lib -lc
 
 KERNEL_CFILE = newlib_support
 KERNEL_CSRC = $(addsuffix .c, $(KERNEL_CFILE))
