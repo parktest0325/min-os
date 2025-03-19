@@ -5,6 +5,23 @@
 #include "frame_buffer_config.hpp"
 #include "graphics.hpp"
 #include "font.hpp"
+#include "console.hpp"
+
+char console_buf[sizeof(Console)];
+Console* console;
+
+int printk(const char* format, ...) {
+  va_list ap;
+  int result;
+  char s[1024];
+
+  va_start(ap, format);
+  result = vsprintf(s, format, ap);
+  va_end(ap);
+
+  console->PutString(s);
+  return result;
+}
 
 void* operator new(size_t size, void* buf) {
   return buf;
@@ -47,5 +64,12 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   char buf[128];
   sprintf(buf, "1+2=%d",1+2);
   WriteString(*pixel_writer, 0, 300, buf, {255,255,255});
+
+  console = new(console_buf) Console{*pixel_writer, {255, 255, 255}, {2, 7, 21}};
+
+  for (int i = 0; i < 100; i++) {
+    printk("PRINTK~~~~ %d\n", i);
+  }
+
   while (1) __asm__("hlt");
 }

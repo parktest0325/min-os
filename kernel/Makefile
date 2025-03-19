@@ -25,7 +25,7 @@ KERNEL_CFILE = newlib_support
 KERNEL_CSRC = $(addsuffix .c, $(KERNEL_CFILE))
 KERNEL_COBJ = $(KERNEL_CSRC:.c=.o)
 
-KERNEL_FILE = main font graphics
+KERNEL_FILE = main font graphics console
 KERNEL_SRC = $(addsuffix .cpp, $(KERNEL_FILE))
 KERNEL_OBJ = $(KERNEL_SRC:.cpp=.o)
 
