@@ -6,6 +6,7 @@ RESOURCE_OBJ = hankaku.font
 
 CXX = clang++
 CC = clang
+ASM = nasm
 LD = ld.lld
 RM = rm -f
 
@@ -21,16 +22,20 @@ CPPFLAGS += -I$(ELFLIBDIR)/include/c++/v1 -I$(ELFLIBDIR)/include -I$(ELFLIBDIR)/
 LDFLAGS += --entry KernelMain -z norelro --image-base 0x100000 --static
 LDFLAGS += -L$(ELFLIBDIR)/lib -lc
 
+KERNEL_ASMFILE = asmfunc
+KERNEL_ASMSRC = $(addsuffix .asm, $(KERNEL_ASMFILE))
+KERNEL_ASMOBJ = $(KERNEL_ASMSRC:.asm=.o)
+
 KERNEL_CFILE = newlib_support
 KERNEL_CSRC = $(addsuffix .c, $(KERNEL_CFILE))
 KERNEL_COBJ = $(KERNEL_CSRC:.c=.o)
 
-KERNEL_FILE = main font graphics console
+KERNEL_FILE = main font graphics console pci
 KERNEL_SRC = $(addsuffix .cpp, $(KERNEL_FILE))
 KERNEL_OBJ = $(KERNEL_SRC:.cpp=.o)
 
-SRCS = $(KERNEL_SRC) $(KERNEL_CSRC)
-OBJS = $(KERNEL_OBJ) $(KERNEL_COBJ)
+SRCS = $(KERNEL_SRC) $(KERNEL_CSRC) $(KERNEL_ASMSRC)
+OBJS = $(KERNEL_OBJ) $(KERNEL_COBJ) $(KERNEL_ASMOBJ)
 
 .PHONY: all clean re fclean
 all: $(TARGET)
@@ -46,6 +51,10 @@ $(TARGET): $(OBJS)
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+%.o: %.asm
+	$(ASM) -f elf64 $< -o $@
+
 
 fclean: clean
 	$(RM) $(TARGET)
