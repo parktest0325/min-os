@@ -64,6 +64,7 @@ char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
 PixelWriter* pixel_writer;
 
 extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
+  SetLogLevel(kDebug);
   switch (frame_buffer_config.pixel_format) {
     case kPixelRGBResv8BitPerColor:
       pixel_writer = new(pixel_writer_buf)
@@ -134,11 +135,15 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     }
   }
 
-  SetLogLevel(kInfo);
   if (xhc_dev) {
     Log(kInfo, "xHC has been found: %d:%d.%d\n",
         xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
+
+  const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
+  Log(kDebug, "ReadBar: %s\n", xhc_bar.error.Name());
+  const uint64_t xhc_mmio_base = xhc_bar.value & ~static_cast<uint64_t>(0xf);
+  Log(kDebug, "xHC mmio_base = %08lx\n", xhc_mmio_base);
 
   while (1) __asm__("hlt");
 }
