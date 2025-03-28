@@ -14,13 +14,17 @@ CFLAGS   += -O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone
 CXXFLAGS += -O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone \
             -fno-exceptions -fno-rtti -std=c++17
 
+CPPFLAGS += -I.
 CPPFLAGS += -I$(ELFLIBDIR)/include/c++/v1 -I$(ELFLIBDIR)/include -I$(ELFLIBDIR)/include/freetype2 \
             -I$(EDK2DIR)/MdePkg/Include -I$(EDK2DIR)/MdePkg/Include/X64 \
             -nostdlibinc -D__ELF__ -D_LDBL_EQ_DBL -D_GNU_SOURCE -D_POSIX_TIMERS \
             -DEFIAPI='__attribute__((ms_abi))'
 
 LDFLAGS += --entry KernelMain -z norelro --image-base 0x100000 --static
-LDFLAGS += -L$(ELFLIBDIR)/lib -lc
+LDFLAGS += -L$(ELFLIBDIR)/lib -lc -lc++
+
+MODULE_USB_SRC = $(shell find usb -name '*.cpp')
+MODULE_USB_OBJ = $(MODULE_USB_SRC:.cpp=.o)
 
 KERNEL_ASMFILE = asmfunc
 KERNEL_ASMSRC = $(addsuffix .asm, $(KERNEL_ASMFILE))
@@ -30,12 +34,12 @@ KERNEL_CFILE = newlib_support
 KERNEL_CSRC = $(addsuffix .c, $(KERNEL_CFILE))
 KERNEL_COBJ = $(KERNEL_CSRC:.c=.o)
 
-KERNEL_FILE = main font graphics console pci logger
+KERNEL_FILE = main font graphics console pci logger libcxx_support
 KERNEL_SRC = $(addsuffix .cpp, $(KERNEL_FILE))
 KERNEL_OBJ = $(KERNEL_SRC:.cpp=.o)
 
-SRCS = $(KERNEL_SRC) $(KERNEL_CSRC) $(KERNEL_ASMSRC)
-OBJS = $(KERNEL_OBJ) $(KERNEL_COBJ) $(KERNEL_ASMOBJ)
+SRCS = $(KERNEL_SRC) $(KERNEL_CSRC) $(KERNEL_ASMSRC) $(MODULE_USB_SRC)
+OBJS = $(KERNEL_OBJ) $(KERNEL_COBJ) $(KERNEL_ASMOBJ) $(MODULE_USB_OBJ)
 
 .PHONY: all clean re fclean
 all: $(TARGET)
