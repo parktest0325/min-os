@@ -20,7 +20,7 @@ if [ "$1" == "ovmf" ]; then
   ACTIVE_PLATFORM="${PLATFORM}Pkg/${PLATFORM}Pkg${TARGET_ARCH}.dsc"
 else
   PLATFORM=MinLoader
-  CP_TARGET="${TARGET_ARCH}/Loader.efi"
+  CP_TARGET="${TARGET_ARCH}/Loader.*"
 
   if [ ! -d "./${PLATFORM}Pkg" ]; then
     ln -s "../../bootloader/${PLATFORM}Pkg" ./
