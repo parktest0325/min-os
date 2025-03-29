@@ -41,15 +41,22 @@ fi
 set --
 source ./edksetup.sh
 
+if sed --version >/dev/null 2>&1; then
+  # GNU sed (Linux)
+  BAK_FILE=""
+else
+  # BSD sed (macOS)
+  BAK_FILE="''"
+fi
 
 # Configure target.txt
-sed -i "/ACTIVE_PLATFORM/ s:= .*$:= ${ACTIVE_PLATFORM}:" Conf/target.txt
-sed -i "/TARGET_ARCH / s:= .*$:= ${TARGET_ARCH}:" Conf/target.txt
-sed -i "/TARGET / s:= .*$:= ${TARGET}:" Conf/target.txt
-sed -i "/TOOL_CHAIN_TAG/ s:= .*$:= ${TOOL_CHAIN_TAG}:" Conf/target.txt
+sed -i ${BAK_FILE} "/ACTIVE_PLATFORM/ s:= .*$:= ${ACTIVE_PLATFORM}:" Conf/target.txt
+sed -i ${BAK_FILE} "/TARGET_ARCH / s:= .*$:= ${TARGET_ARCH}:" Conf/target.txt
+sed -i ${BAK_FILE} "/TARGET / s:= .*$:= ${TARGET}:" Conf/target.txt
+sed -i ${BAK_FILE} "/TOOL_CHAIN_TAG/ s:= .*$:= ${TOOL_CHAIN_TAG}:" Conf/target.txt
 
-sed -i '/CLANG38/ s/-flto//' Conf/tools_def.txt
-sed -i '/MTOC_PATH/ s:= .*$:= /opt/homebrew/bin/mtoc:' Conf/tools_def.txt
+sed -i ${BAK_FILE} '/CLANG38/ s/-flto//' Conf/tools_def.txt
+sed -i ${BAK_FILE} '/MTOC_PATH/ s:= .*$:= /opt/homebrew/bin/mtoc:' Conf/tools_def.txt
 
 rm -rf Build/${PLATFORM}${TARGET_ARCH}/${TARGET}_${TOOL_CHAIN_TAG}/
 build
