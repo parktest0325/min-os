@@ -21,7 +21,7 @@ private:
   T* data_;
   // read_pos_: front, write_pos_: back
   size_t read_pos_, write_pos_, count_;
-  // const_: 큐에 들어있는 데이터 수
+  // count_: 큐에 들어있는 데이터 수
   // capacity_: 전체 배열 길이. (빈영역 포함)
   const size_t capacity_;
 };
