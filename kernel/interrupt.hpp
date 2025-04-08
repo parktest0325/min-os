@@ -69,6 +69,7 @@ void SetIDTEntry(InterruptDescriptor& desc,
                 uint64_t offset,
                 uint16_t segment_selector);
 
+__attribute__((no_caller_saved_registers))
 void NotifyEndOfInterrupt();
 
 
