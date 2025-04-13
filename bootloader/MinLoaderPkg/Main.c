@@ -17,6 +17,23 @@
 #include "frame_buffer_config.hpp"
 #include "memory_map.hpp"
 
+// #@@range_begin(check_cpu_mode)
+void check_cpu_mode() {
+  uint64_t cr0, cr4, efer;
+  __asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
+  __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
+  __asm__ volatile("rdmsr" : "=A"(efer) : "c"(0xC0000080));  // IA32_EFER
+
+  Print(L"CR0 = 0x%08llx\n", cr0);
+  Print(L"CR4 = 0x%08llx\n", cr4);
+  Print(L"EFER = 0x%08llx\n", efer);
+
+  if (efer & (1 << 10)) {
+    Print(L"=> Long Mode Active (LMA = 1)\n");
+  }
+}
+// #@@range_end(check_cpu_mode)
+
 // #@@range_begin(get_memory_map)
 EFI_STATUS GetMemoryMap(struct MemoryMap* map) {
   if (map->buffer == NULL) {
@@ -202,6 +219,7 @@ void CopyLoadSegments(Elf64_Ehdr* ehdr) {
 EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
     EFI_SYSTEM_TABLE* system_table) {
+  check_cpu_mode();
   Print(L"Hello, min-os World!\n");
   EFI_STATUS status;
   EFI_LOADED_IMAGE_PROTOCOL *LoadedImage = NULL;

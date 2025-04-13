@@ -15,6 +15,7 @@
 #include "interrupt.hpp"
 #include "queue.hpp"
 #include "memory_map.hpp"
+#include "segment.hpp"
 
 #include "asmfunc.h"
 
@@ -94,6 +95,13 @@ alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config,
                            const MemoryMap& memory_map) {
+
+  SetupSegments();
+  const uint16_t kernel_cs = 1 << 3;    // GDT의 인덱스가 8byte 단위라서 << 3 함
+  const uint16_t kernel_ss = 2 << 3;
+  SetDSAll(0);
+  SetCSSS(kernel_cs, kernel_ss);
+
   switch (frame_buffer_config.pixel_format) {
     case kPixelRGBResv8BitPerColor:
       pixel_writer = new(pixel_writer_buf)
