@@ -16,6 +16,7 @@
 #include "queue.hpp"
 #include "memory_map.hpp"
 #include "segment.hpp"
+#include "paging.hpp"
 
 #include "asmfunc.h"
 
@@ -93,14 +94,11 @@ void IntHandlerXHCI(InterruptFrame* frame) {
 
 alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
-extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config,
-                           const MemoryMap& memory_map) {
-
-  SetupSegments();
-  const uint16_t kernel_cs = 1 << 3;    // GDT의 인덱스가 8byte 단위라서 << 3 함
-  const uint16_t kernel_ss = 2 << 3;
-  SetDSAll(0);
-  SetCSSS(kernel_cs, kernel_ss);
+extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref,
+                           const MemoryMap& memory_map_ref) {
+  // 포인터를 전달받았지만 스택으로 이동
+  FrameBufferConfig frame_buffer_config{frame_buffer_config_ref};
+  MemoryMap memory_map{memory_map_ref};
 
   switch (frame_buffer_config.pixel_format) {
     case kPixelRGBResv8BitPerColor:
@@ -141,16 +139,24 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config,
   printk("Welcome to Min-OS!\n");
   SetLogLevel(kWarn);
 
+  SetupSegments();
+  const uint16_t kernel_cs = 1 << 3;    // GDT의 인덱스가 8byte 단위라서 << 3 함
+  const uint16_t kernel_ss = 2 << 3;
+  SetDSAll(0);
+  SetCSSS(kernel_cs, kernel_ss);
+  SetupIdentityPageTable();
+
   printk("memory_map: %p\n", &memory_map);
   for (uintptr_t iter = reinterpret_cast<uintptr_t>(memory_map.buffer);
       iter < reinterpret_cast<uintptr_t>(memory_map.buffer) + memory_map.map_size;
       iter += memory_map.descriptor_size) {
     auto desc = reinterpret_cast<MemoryDescriptor*>(iter);
     if (IsAvailable(static_cast<MemoryType>(desc->type))){
-      printk("type = %u, phys = %08lx - %08lx, pages = %lu, attr = %08lx\n",
+      printk("type = %u, phys = %08lx - %08lx, virs = %08lx, pages = %lu, attr = %08lx\n",
           desc->type,
           desc->physical_start,
           desc->physical_start + desc->number_of_pages * 4096 - 1,
+          desc->virtual_start,
           desc->number_of_pages,
           desc->attribute
       );
@@ -193,9 +199,8 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config,
         xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
 
-  const uint16_t cs = GetCS();
   SetIDTEntry(idt[InterruptVector::kXHCI], MakeIDTAttr(DescriptorType::kInterruptGate, 0),
-              reinterpret_cast<uint64_t>(IntHandlerXHCI), cs);
+              reinterpret_cast<uint64_t>(IntHandlerXHCI), kernel_cs);
   LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
 
   uint8_t bsp_local_apic_id =
