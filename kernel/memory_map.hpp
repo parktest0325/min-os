@@ -62,11 +62,11 @@ inline void SwapMemoryDescriptor(MemoryDescriptor& a, MemoryDescriptor& b) {
 
 inline void SortMemoryMapInPlace(MemoryMap& memory_map) {
   const auto desc_count = memory_map.map_size / memory_map.descriptor_size;
-  const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map.buffer);
+  const auto memory_map_base = reinterpret_cast<unsigned char*>(memory_map.buffer);
 
   MemoryDescriptor *mem_a, *mem_b;
   for (size_t i = 0; i < desc_count; ++i) {
-    for (size_t j = i; j < desc_count; ++j) {
+    for (size_t j = i + 1; j < desc_count; ++j) {
       mem_a = reinterpret_cast<MemoryDescriptor*>(memory_map_base + memory_map.descriptor_size * i);
       mem_b = reinterpret_cast<MemoryDescriptor*>(memory_map_base + memory_map.descriptor_size * j);
       if (mem_a->physical_start > mem_b->physical_start) {

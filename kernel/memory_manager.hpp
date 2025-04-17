@@ -50,6 +50,8 @@ public:
 
   void SetMemoryRange(FrameID range_begin, FrameID range_end);
 
+  MapLineType GetMapLine(unsigned int idx);
+
 private:
   std::array<MapLineType, kFrameCount / kBitsPerMapLine> alloc_map_;
   FrameID range_begin_;

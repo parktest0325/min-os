@@ -8,7 +8,7 @@ bool BitmapMemoryManager::GetBit(FrameID frame) const {
   auto line_index = frame.ID() / kBitsPerMapLine;
   auto bit_index = frame.ID() % kBitsPerMapLine;
 
-  return (alloc_map_[line_index] & (static_cast<MapLineType>(1) << bit_index)) == 1;
+  return (alloc_map_[line_index] & (static_cast<MapLineType>(1) << bit_index)) != 0;
 }
 
 void BitmapMemoryManager::SetBit(FrameID frame, bool allocated) {
@@ -37,7 +37,7 @@ WithError<FrameID> BitmapMemoryManager::Allocate(size_t num_frames) {
   size_t start_frame_id = range_begin_.ID();
   while (true) {
     size_t i = 0;
-    for(; i < num_frames; ++i) {
+    for (; i < num_frames; ++i) {
       if (start_frame_id + i >= range_end_.ID()) {
         return {kNullFrame, MAKE_ERROR(Error::kNoEnoughMemory)};
       }
@@ -49,7 +49,7 @@ WithError<FrameID> BitmapMemoryManager::Allocate(size_t num_frames) {
       MarkAllocated(FrameID{start_frame_id}, num_frames);
       return {
         FrameID{start_frame_id},
-        MAKE_ERROR(Error::kSuccess)
+        MAKE_ERROR(Error::kSuccess),
       };
     }
     start_frame_id += i + 1;
@@ -61,4 +61,8 @@ Error BitmapMemoryManager::Free(FrameID start_frame, size_t num_frames) {
     SetBit(FrameID{start_frame.ID() + i}, false);
   }
   return MAKE_ERROR(Error::kSuccess);
+}
+
+BitmapMemoryManager::MapLineType BitmapMemoryManager::GetMapLine(unsigned int idx) {
+  return alloc_map_[idx];
 }
