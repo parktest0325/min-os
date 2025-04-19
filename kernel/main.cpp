@@ -196,6 +196,12 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     pixel_writer, kDesktopBGColor, {200, 300}
   };
 
+  if (auto err = InitializeHeap(*memory_manager)) {
+    Log(kError, "failed to allocate pages: %s at %s:%d\n",
+        err.Name(), err.File(), err.Line());
+    exit(1);
+  }
+
   // initial main_queue
   std::array<Message, 32> main_queue_data;
   ArrayQueue<Message> main_queue{main_queue_data};
@@ -271,6 +277,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
       }
     }
   }
+
   printk("> bsp_local_apic_id(0): 0x%x", bsp_local_apic_id);
   // event loop
   while (true) {
