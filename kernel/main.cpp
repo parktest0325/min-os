@@ -18,6 +18,8 @@
 #include "segment.hpp"
 #include "paging.hpp"
 #include "memory_manager.hpp"
+#include "window.hpp"
+#include "layer.hpp"
 
 #include "asmfunc.h"
 
@@ -36,11 +38,11 @@ BitmapMemoryManager* memory_manager;
 char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
 PixelWriter* pixel_writer;
 
-char mouse_cursor_buf[sizeof(MouseCursor)];
-MouseCursor* mouse_cursor;
+unsigned int mouse_layer_id;
 
 void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
-  mouse_cursor->MoveRelative({displacement_x, displacement_y});
+  layer_manager->MoveRelative(mouse_layer_id, {displacement_x, displacement_y});
+  layer_manager->Draw();
 }
 
 int printk(const char* format, ...) {
@@ -115,8 +117,9 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   DrawDesktop(*pixel_writer);
 
   console = new(console_buf) Console {
-    *pixel_writer, kDesktopFGColor, kDesktopBGColor
+    kDesktopFGColor, kDesktopBGColor
   };
+  console->SetWriter(pixel_writer);
 
   printk("Welcome to MikanOS!\n");
   printk("Welcome to Min-OS!\n");
@@ -170,10 +173,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   }
 
   memory_manager->SetMemoryRange(FrameID{1}, FrameID{available_end / kBytesPerFrame});
-
-  mouse_cursor = new(mouse_cursor_buf) MouseCursor{
-    pixel_writer, kDesktopBGColor, {200, 300}
-  };
 
   if (auto err = InitializeHeap(*memory_manager)) {
     Log(kError, "failed to allocate pages: %s at %s:%d\n",
@@ -258,6 +257,37 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   }
 
   printk("> bsp_local_apic_id(0): 0x%x", bsp_local_apic_id);
+
+  const int kFrameWidth = frame_buffer_config.horizontal_resolution;
+  const int kFrameHeight = frame_buffer_config.vertical_resolution;
+
+  auto bgwindow = std::make_shared<Window>(kFrameWidth, kFrameHeight);
+  auto bgwriter = bgwindow->Writer();
+
+  DrawDesktop(*bgwriter);
+  console->SetWriter(bgwriter);
+
+  auto mouse_window = std::make_shared<Window>(kMouseCursorWidth, kMouseCursorHeight);
+  mouse_window->SetTransparentColor(kMouseTransparentColor);
+  DrawMouseCursor(mouse_window->Writer(), {0, 0});
+
+  layer_manager = new LayerManager;
+  layer_manager->SetWriter(pixel_writer);
+
+  auto bglayer_id = layer_manager->NewLayer()
+    .SetWindow(bgwindow)
+    .Move({0, 0})
+    .ID();
+
+  mouse_layer_id = layer_manager->NewLayer()
+    .SetWindow(mouse_window)
+    .Move({200, 200})
+    .ID();
+
+  layer_manager->UpDown(bglayer_id, 0);
+  layer_manager->UpDown(mouse_layer_id, 1);
+  layer_manager->Draw();
+
   // event loop
   while (true) {
     __asm__("cli");
