@@ -21,7 +21,7 @@ CPPFLAGS += -I$(ELFLIBDIR)/include/c++/v1 -I$(ELFLIBDIR)/include -I$(ELFLIBDIR)/
             -DEFIAPI='__attribute__((ms_abi))'
 
 LDFLAGS += --entry KernelMain -z norelro --image-base 0x100000 --static
-LDFLAGS += -L$(ELFLIBDIR)/lib -lc -lc++
+LDFLAGS += -L$(ELFLIBDIR)/lib -lc -lc++ -lc++abi
 
 MODULE_USB_SRC = $(shell find usb -name '*.cpp')
 MODULE_USB_OBJ = $(MODULE_USB_SRC:.cpp=.o)
@@ -35,7 +35,7 @@ KERNEL_CSRC = $(addsuffix .c, $(KERNEL_CFILE))
 KERNEL_COBJ = $(KERNEL_CSRC:.c=.o)
 
 KERNEL_FILE = main font graphics console pci logger libcxx_support mouse interrupt \
-							queue segment paging memory_manager
+							queue segment paging memory_manager window layer
 KERNEL_SRC = $(addsuffix .cpp, $(KERNEL_FILE))
 KERNEL_OBJ = $(KERNEL_SRC:.cpp=.o)
 
