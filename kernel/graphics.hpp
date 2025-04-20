@@ -18,11 +18,27 @@ struct PixelColor {
   uint8_t r, g, b;
 };
 
+inline bool operator==(const PixelColor& lhs, const PixelColor& rhs) {
+  return lhs.r == rhs.r && lhs.g == rhs.g && lhs.b == rhs.b;
+}
+inline bool operator!=(const PixelColor& lhs, const PixelColor& rhs) {
+  return !(lhs == rhs);
+}
+
 class PixelWriter {
 public:
-  PixelWriter(const FrameBufferConfig& config) : config_{config} {}
   virtual ~PixelWriter() = default;
   virtual void Write(int x, int y, const PixelColor& c) = 0;
+  virtual int Width() const = 0;
+  virtual int Height() const = 0;
+};
+
+class FrameBufferWriter : public PixelWriter {
+public:
+  FrameBufferWriter(const FrameBufferConfig& config) : config_{config} {}
+  virtual ~FrameBufferWriter() = default;
+  virtual int Width() const override { return config_.horizontal_resolution; }
+  virtual int Height() const override { return config_.vertical_resolution; }
 
 protected:
   uint8_t* PixelAt(int x, int y) {
@@ -33,15 +49,15 @@ private:
   const FrameBufferConfig& config_;
 };
 
-class RGBResv8BitPerColorPixelWriter : public PixelWriter {
+class RGBResv8BitPerColorPixelWriter : public FrameBufferWriter {
 public:
-  using PixelWriter::PixelWriter;
+  using FrameBufferWriter::FrameBufferWriter;
   virtual void Write(int x, int y, const PixelColor& c) override;
 };
 
-class BGRResv8BitPerColorPixelWriter : public PixelWriter {
+class BGRResv8BitPerColorPixelWriter : public FrameBufferWriter {
 public:
-  using PixelWriter::PixelWriter;
+  using FrameBufferWriter::FrameBufferWriter;
   virtual void Write(int x, int y, const PixelColor& c) override;
 };
 
@@ -50,3 +66,8 @@ void FillRectangle(PixelWriter& writer, const Vector2D<int>& pos,
 
 void DrawRectangle(PixelWriter& writer, const Vector2D<int>& pos,
                     const Vector2D<int>& size, const PixelColor& c);
+
+const PixelColor kDesktopBGColor{45, 118, 237};
+const PixelColor kDesktopFGColor{255, 255, 255};
+
+void DrawDesktop(PixelWriter& writer);
