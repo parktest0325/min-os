@@ -20,6 +20,7 @@
 #include "memory_manager.hpp"
 #include "window.hpp"
 #include "layer.hpp"
+#include "timer.hpp"
 
 #include "asmfunc.h"
 
@@ -40,11 +41,6 @@ PixelWriter* pixel_writer;
 
 unsigned int mouse_layer_id;
 
-void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
-  layer_manager->MoveRelative(mouse_layer_id, {displacement_x, displacement_y});
-  layer_manager->Draw();
-}
-
 int printk(const char* format, ...) {
   va_list ap;
   int result;
@@ -56,6 +52,15 @@ int printk(const char* format, ...) {
 
   console->PutString(s);
   return result;
+}
+
+void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
+  layer_manager->MoveRelative(mouse_layer_id, {displacement_x, displacement_y});
+  StartLAPICTimer();
+  layer_manager->Draw();
+  auto elapsed = LAPICTimerElapsed();
+  StopLAPICTimer();
+  printk("MouseObserver: elapsed = %u\n", elapsed);
 }
 
 void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
@@ -124,6 +129,8 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   printk("Welcome to MikanOS!\n");
   printk("Welcome to Min-OS!\n");
   SetLogLevel(kWarn);
+
+  InitializeLAPICTimer();
 
   SetupSegments();
   const uint16_t kernel_cs = 1 << 3;    // GDT의 인덱스가 8byte 단위라서 << 3 함
