@@ -11,7 +11,7 @@ void Window::DrawTo(PixelWriter& writer, Vector2D<int> position) {
   if (!transparent_color_) {
     for (int y = 0; y < Height(); ++y) {
       for (int x = 0; x < Width(); ++x) {
-        writer.Write(position.x + x, position.y + y, At(x, y));
+        writer.Write(position + Vector2D<int>{x, y}, At(Vector2D<int>{x, y}));
       }
     }
     return;
@@ -20,9 +20,9 @@ void Window::DrawTo(PixelWriter& writer, Vector2D<int> position) {
   const auto tc = transparent_color_.value();
   for (int y = 0; y < Height(); ++y) {
     for (int x = 0; x < Width(); ++x) {
-      const auto c = At(x, y);
+      const auto c = At(Vector2D<int>{x, y});
       if (c != tc) {
-        writer.Write(position.x + x, position.y + y, c);
+        writer.Write(position + Vector2D<int>{x, y}, c);
       }
     }
   }
@@ -37,12 +37,12 @@ Window::WindowWriter* Window::Writer() {
   return &writer_;
 }
 
-PixelColor& Window::At(int x, int y) {
-  return data_[y][x];
+PixelColor& Window::At(Vector2D<int> pos) {
+  return data_[pos.y][pos.x];
 }
 
-const PixelColor& Window::At(int x, int y) const {
-  return data_[y][x];
+const PixelColor& Window::At(Vector2D<int> pos) const {
+  return data_[pos.y][pos.x];
 }
 
 int Window::Width() const {
