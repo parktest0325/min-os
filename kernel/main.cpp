@@ -274,7 +274,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   auto mouse_window = std::make_shared<Window>(
     kMouseCursorWidth, kMouseCursorHeight, frame_buffer_config.pixel_format);
-  // mouse_window->SetTransparentColor(kMouseTransparentColor);
+  mouse_window->SetTransparentColor(kMouseTransparentColor);
   DrawMouseCursor(mouse_window->Writer(), {0, 0});
   mouse_position = {200, 200};
 
