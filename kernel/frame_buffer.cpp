@@ -55,35 +55,27 @@ Error FrameBuffer::Initialize(const FrameBufferConfig& config) {
   return MAKE_ERROR(Error::kSuccess);
 }
 
-Error FrameBuffer::Copy(Vector2D<int> pos, const FrameBuffer& src) {
+Error FrameBuffer::Copy(Vector2D<int> dst_pos, const FrameBuffer& src, const Rectangle<int>& src_area) {
   if (config_.pixel_format != src.config_.pixel_format) {
     return MAKE_ERROR(Error::kUnknownPixelFormat);
   }
 
-  const int bytes_per_pixel = BytesPerPixel(config_.pixel_format);
+  const auto bytes_per_pixel = BytesPerPixel(config_.pixel_format);
   if (bytes_per_pixel <= 0) {
     return MAKE_ERROR(Error::kUnknownPixelFormat);
   }
 
-  const Vector2D<int> dst_size = FrameBufferSize(config_);
-  const Vector2D<int> src_size = FrameBufferSize(src.config_);
+  const Rectangle<int> src_area_shifted{dst_pos, src_area.size};
+  const Rectangle<int> src_outline{dst_pos - src_area.pos, FrameBufferSize(src.config_)};
+  const Rectangle<int> dst_outline{{0, 0}, FrameBufferSize(config_)};
+  const auto copy_area = dst_outline & src_outline & src_area_shifted;
+  const auto src_start_pos = src_area.pos;
 
-  const Vector2D<int> dst_pos = ElementMax(pos, {0, 0});
-  const Vector2D<int> src_pos = ElementMax(Vector2D<int>{-pos.x, -pos.y}, {0, 0});
+  uint8_t* dst_buf = FrameAddrAt(copy_area.pos, config_);
+  const uint8_t* src_buf = FrameAddrAt(src_start_pos, src.config_);
 
-  const int bytes_per_copy_line =
-      bytes_per_pixel * std::min(src_size.x - src_pos.x, dst_size.x - dst_pos.x);
-  const int copy_line = std::min(src_size.y - src_pos.y, dst_size.y - dst_pos.y);
-  if (bytes_per_copy_line <= 0 || copy_line <= 0) {
-    // 겹치는 그리기 영역이 없음
-    return MAKE_ERROR(Error::kSuccess);
-  }
-
-  uint8_t* dst_buf = FrameAddrAt(dst_pos, config_);
-  const uint8_t* src_buf = FrameAddrAt(src_pos, src.config_);
-
-  for (int dy = 0; dy < copy_line; ++dy) {
-    memcpy(dst_buf, src_buf, bytes_per_copy_line);
+  for (int y = 0; y < copy_area.size.y; ++y) {
+    memcpy(dst_buf, src_buf, bytes_per_pixel * copy_area.size.x);
     dst_buf += BytesPerScanLine(config_);
     src_buf += BytesPerScanLine(src.config_);
   }
