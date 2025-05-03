@@ -36,4 +36,10 @@ void SetDataSegment(SegmentDescriptor& desc,
                     uint32_t base,
                     uint32_t limit);
 
+const uint16_t kKernelCS = 1 << 3;    // GDT의 인덱스가 8byte 단위라서 << 3 함
+const uint16_t kKernelSS = 2 << 3;
+const uint16_t kKernelDS = 0;
+
 void SetupSegments();
+
+void InitializeSegmentation();

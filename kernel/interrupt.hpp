@@ -2,7 +2,10 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
+
 #include "x86_descriptor.hpp"
+#include "message.hpp"
 
 union InterruptDescriptorAttribute {
   uint16_t data;
@@ -63,5 +66,4 @@ void SetIDTEntry(InterruptDescriptor& desc,
 __attribute__((no_caller_saved_registers))
 void NotifyEndOfInterrupt();
 
-
-
+void InitializeInterrupt(std::deque<Message>* msg_queue);
