@@ -22,6 +22,15 @@ Vector2D<int> Layer::GetPosition() const {
   return pos_;
 }
 
+Layer& Layer::SetDraggable(bool draggable) {
+  draggable_ = draggable;
+  return *this;
+}
+
+bool Layer::IsDraggable() const {
+  return draggable_;
+}
+
 Layer& Layer::Move(Vector2D<int> pos) {
   pos_ = pos;
   return *this;
@@ -124,6 +133,27 @@ void LayerManager::Hide(unsigned int id) {
   if (pos != layer_stack_.end()) {
     layer_stack_.erase(pos);
   }
+}
+
+Layer* LayerManager::FindLayerByPosition(Vector2D<int> pos, unsigned int exclude_id) const {
+  auto pred = [pos, exclude_id](Layer* layer) {
+    if (layer->ID() == exclude_id) {
+      return false;
+    }
+    const auto& win = layer->GetWindow();
+    if (!win) {
+      return false;
+    }
+    const auto win_pos = layer->GetPosition();
+    const auto win_end_pos = win_pos + win->Size();
+    return win_pos.x <= pos.x && pos.x < win_end_pos.x &&
+            win_pos.y <= pos.y && pos.y < win_end_pos.y;
+  };
+  auto it = std::find_if(layer_stack_.rbegin(), layer_stack_.rend(), pred);
+  if (it == layer_stack_.rend()) {
+    return nullptr;
+  }
+  return *it;
 }
 
 Layer* LayerManager::FindLayer(unsigned int id) {

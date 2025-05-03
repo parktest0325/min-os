@@ -15,6 +15,8 @@ public:
   Layer& SetWindow(const std::shared_ptr<Window>& window);
   std::shared_ptr<Window> GetWindow() const;
   Vector2D<int> GetPosition() const;
+  Layer& SetDraggable(bool draggable);
+  bool IsDraggable() const;
 
   Layer& Move(Vector2D<int> pos);
   Layer& MoveRelative(Vector2D<int> pos_diff);
@@ -23,8 +25,9 @@ public:
 
 private:
   unsigned int id_;
-  Vector2D<int> pos_;
-  std::shared_ptr<Window> window_;
+  Vector2D<int> pos_{};
+  std::shared_ptr<Window> window_{};
+  bool draggable_{false};
 };
 
 class LayerManager {
@@ -39,6 +42,8 @@ public:
 
   void UpDown(unsigned int id, int new_height);
   void Hide(unsigned int id);
+
+  Layer* FindLayerByPosition(Vector2D<int> pos, unsigned int exclude_id) const;
 
 private:
   FrameBuffer* screen_{nullptr};
