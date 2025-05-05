@@ -63,6 +63,11 @@ alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref,
                            const MemoryMap& memory_map_ref) {
+#ifdef DEBUG
+  volatile int hold = 1;
+  while (hold);
+#endif
+
   // 포인터를 전달받았지만 스택으로 이동
   MemoryMap memory_map{memory_map_ref};
   InitializeGraphics(frame_buffer_config_ref);

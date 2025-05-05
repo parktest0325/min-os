@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/sh -ex
 
 if [ ! -d edk2 ]
 then
@@ -14,7 +14,7 @@ TARGET_ARCH=X64
 TARGET=DEBUG
 BUILD_FOLDER=../build
 
-if [ "$1" == "ovmf" ]; then
+if [ "$1" = "ovmf" ]; then
   PLATFORM=Ovmf
   CP_TARGET="FV/OVMF_*.fd"
   ACTIVE_PLATFORM="${PLATFORM}Pkg/${PLATFORM}Pkg${TARGET_ARCH}.dsc"

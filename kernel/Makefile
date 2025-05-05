@@ -10,6 +10,10 @@ ASM = nasm
 LD = ld.lld
 RM = rm -f
 
+ifeq ($(DEBUG),1)
+	DDEBUG = -DDEBUG
+endif
+
 CFLAGS   += -O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone
 CXXFLAGS += -O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone \
             -fno-exceptions -fno-rtti -std=c++17
@@ -52,10 +56,10 @@ $(TARGET): $(OBJS)
 	$(LD) $(LDFLAGS) $^ $(RESOURCE_OBJ) -o $@
 
 %.o: %.cpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CPPFLAGS) $(DDEBUG) $(CXXFLAGS) -c $< -o $@
 
 %.o: %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) $(DDEBUG) $(CFLAGS) -c $< -o $@
 
 %.o: %.asm
 	$(ASM) -f elf64 $< -o $@
