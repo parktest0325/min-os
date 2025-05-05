@@ -11,7 +11,7 @@ LD = ld.lld
 RM = rm -f
 
 ifeq ($(DEBUG),1)
-	DDEBUG = -DDEBUG -O0 -g
+	DDEBUG = -DDEBUG -O2 -g
 endif
 
 CFLAGS   += -O2 -Wall --target=x86_64-elf -ffreestanding -mno-red-zone

@@ -22,6 +22,7 @@
 #include "window.hpp"
 #include "layer.hpp"
 #include "message.hpp"
+#include "timer.hpp"
 
 #include "asmfunc.h"
 
@@ -88,20 +89,27 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   layer_manager->Draw({{0, 0}, ScreenSize()});
 
+  InitializeLAPICTimer(*main_queue);
+  timer_manager->AddTimer(Timer(1000, 2));
+  timer_manager->AddTimer(Timer(700, -1));
+  timer_manager->AddTimer(Timer(500, 20));
+
   char str[128];
-  unsigned int count = 0;
 
   // event loop
   while (true) {
-    ++count;
-    sprintf(str, "%010u", count);
+    __asm__("cli");
+    const auto tick = timer_manager->CurrentTick();
+    __asm__("sti");
+
+    sprintf(str, "%010lu", tick);
     FillRectangle(*main_window->Writer(), {24, 68}, {8 * 10, 16}, {0xc6, 0xc6, 0xc6});
     WriteString(*main_window->Writer(), {24, 68}, str, {0, 0, 0});
     layer_manager->Draw(main_window_layer_id);
 
     __asm__("cli");
     if (main_queue->size() == 0) {
-      __asm__("sti");
+      __asm__("sti\n\thlt");
       continue;
     }
 
@@ -112,6 +120,14 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     switch (msg.type) {
     case Message::kInterruptXHCI:
       usb::xhci::ProcessEvents();
+      break;
+    case Message::kTimerTimeout:
+      printk("Timer: timeout = %lu, value = %d\n",
+        msg.arg.timer.timeout, msg.arg.timer.value);
+      if (msg.arg.timer.value > 0) {
+        timer_manager->AddTimer(Timer(
+          msg.arg.timer.timeout * 2, msg.arg.timer.value + 1));
+      }
       break;
     default:
       Log(kError, "Unknown message type: %d\n", msg.type);
