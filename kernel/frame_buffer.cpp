@@ -69,7 +69,11 @@ Error FrameBuffer::Copy(Vector2D<int> dst_pos, const FrameBuffer& src, const Rec
   const Rectangle<int> src_outline{dst_pos - src_area.pos, FrameBufferSize(src.config_)};
   const Rectangle<int> dst_outline{{0, 0}, FrameBufferSize(config_)};
   const auto copy_area = dst_outline & src_outline & src_area_shifted;
-  const auto src_start_pos = src_area.pos;
+  if (copy_area.size.x <= 0 || copy_area.size.y <= 0) {
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  const auto src_start_pos = src_area.pos + (copy_area.pos - dst_pos);
 
   uint8_t* dst_buf = FrameAddrAt(copy_area.pos, config_);
   const uint8_t* src_buf = FrameAddrAt(src_start_pos, src.config_);
