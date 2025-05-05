@@ -31,8 +31,6 @@ if [ "$DEBUG_MODE" = "debug" ]; then
     qemu-system-x86_64 $QEMU_ARGS -d int,guest_errors -no-reboot -gdb tcp::1234 -S > /dev/null 2>&1 &
     QEMU_PID=$!
 
-    sleep 1  # QEMU가 포트 열 시간 확보
-
     gdb ./build/kernel.elf \
         -ex "target remote :1234" \
         -ex "break KernelMain" \
