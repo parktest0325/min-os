@@ -94,8 +94,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   acpi::Initialize(acpi_table);
   InitializeLAPICTimer(*main_queue);
   timer_manager->AddTimer(Timer(1000, 2));
-  timer_manager->AddTimer(Timer(700, -1));
-  timer_manager->AddTimer(Timer(500, 20));
 
   char str[128];
 
@@ -129,7 +127,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
         msg.arg.timer.timeout, msg.arg.timer.value);
       if (msg.arg.timer.value > 0) {
         timer_manager->AddTimer(Timer(
-          msg.arg.timer.timeout * 2, msg.arg.timer.value + 1));
+          msg.arg.timer.timeout + 1000, msg.arg.timer.value + 1));
       }
       break;
     default:
