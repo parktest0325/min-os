@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/bash -ex
 
 if [ ! -d edk2 ]
 then
@@ -39,7 +39,7 @@ fi
 
 
 set --
-source ./edksetup.sh
+. ./edksetup.sh
 
 if sed --version >/dev/null 2>&1; then
   # GNU sed (Linux)
