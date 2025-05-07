@@ -23,6 +23,7 @@
 #include "layer.hpp"
 #include "message.hpp"
 #include "timer.hpp"
+#include "acpi.hpp"
 
 #include "asmfunc.h"
 
@@ -63,7 +64,8 @@ std::deque<Message>* main_queue;
 alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref,
-                           const MemoryMap& memory_map_ref) {
+                            const MemoryMap& memory_map_ref,
+                            const acpi::RSDP& acpi_table) {
   // 포인터를 전달받았지만 스택으로 이동
   MemoryMap memory_map{memory_map_ref};
   InitializeGraphics(frame_buffer_config_ref);
@@ -89,6 +91,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   layer_manager->Draw({{0, 0}, ScreenSize()});
 
+  acpi::Initialize(acpi_table);
   InitializeLAPICTimer(*main_queue);
   timer_manager->AddTimer(Timer(1000, 2));
   timer_manager->AddTimer(Timer(700, -1));

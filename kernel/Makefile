@@ -39,7 +39,7 @@ KERNEL_CSRC = $(addsuffix .c, $(KERNEL_CFILE))
 KERNEL_COBJ = $(KERNEL_CSRC:.c=.o)
 
 KERNEL_FILE = main font graphics console pci logger libcxx_support mouse interrupt \
-							segment paging memory_manager window layer timer frame_buffer
+							segment paging memory_manager window layer timer frame_buffer acpi
 KERNEL_SRC = $(addsuffix .cpp, $(KERNEL_FILE))
 KERNEL_OBJ = $(KERNEL_SRC:.cpp=.o)
 
