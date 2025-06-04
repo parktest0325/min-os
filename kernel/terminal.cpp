@@ -1,9 +1,10 @@
 #include "terminal.hpp"
 
+#include <cstring>
+
 #include "font.hpp"
 #include "layer.hpp"
-
-#include "logger.hpp"
+#include "pci.hpp"
 
 Terminal::Terminal() {
   window_ = std::make_shared<ToplevelWindow>(
@@ -18,6 +19,8 @@ Terminal::Terminal() {
     .SetWindow(window_)
     .SetDraggable(true)
     .ID();
+
+  Print(">");
 }
 
 Rectangle<int> Terminal::BlinkCursor() {
@@ -46,12 +49,13 @@ Rectangle<int> Terminal::InputKey(
     linebuf_[linebuf_index_] = 0;
     linebuf_index_ = 0;
     cursor_.x = 0;
-    Log(kWarn, "line: %s\n", &linebuf_[0]);
     if (cursor_.y < kRows - 1) {
       ++cursor_.y;
     } else {
       Scroll1();
     }
+    ExecuteLine();
+    Print(">");
     draw_area.pos = ToplevelWindow::kTopLeftMargin;
     draw_area.size = window_->InnerSize();
   } else if (ascii == '\b') {
@@ -85,6 +89,67 @@ void Terminal::Scroll1() {
   window_->Move(ToplevelWindow::kTopLeftMargin + Vector2D<int>{4, 4}, move_src);
   FillRectangle(*window_->InnerWriter(),
                 {4, 4 + 16*cursor_.y}, {8*kColumns, 16}, {0, 0, 0});
+}
+
+void Terminal::ExecuteLine() {
+  char* command = &linebuf_[0];
+  char* first_arg = strchr(&linebuf_[0], ' ');
+  if (first_arg) {
+    *first_arg = 0;
+    ++first_arg;
+  }
+  if (strcmp(command, "echo") == 0) {
+    if (first_arg) {
+      Print(first_arg);
+    }
+    Print("\n");
+  } else if (strcmp(command, "clear") == 0) {
+    FillRectangle(*window_->InnerWriter(),
+                  {4, 4}, {8*kColumns, 16*kRows}, {0, 0, 0});
+    cursor_.y = 0;
+  } else if (strcmp(command, "lspci") == 0) {
+    char s[64];
+    for (int i = 0; i < pci::num_device; ++i) {
+      const auto& dev = pci::devices[i];
+      auto vendor_id = pci::ReadVendorId(dev.bus, dev.device, dev.function);
+      sprintf(s, "%02x:%02x.%d vend=%04x head=%02x class=%02x.%02x.%02x\n",
+        dev.bus, dev.device, dev.function, vendor_id, dev.header_type,
+        dev.class_code.base, dev.class_code.sub, dev.class_code.interface);
+      Print(s);
+    }
+  } else if (command[0] != 0) {
+    Print("no such command: ");
+    Print(command);
+    Print("\n");
+  }
+}
+
+void Terminal::Print(const char* s) {
+  DrawCursor(false);
+
+  auto newline = [this]() {
+    cursor_.x = 0;
+    if (cursor_.y < kRows - 1) {
+      ++cursor_.y;
+    } else {
+      Scroll1();
+    }
+  };
+
+  while (*s) {
+    if (*s == '\n') {
+      newline();
+    } else {
+      WriteAscii(*window_->Writer(), CalcCursorPos(), *s, {255, 255, 255});
+      if (cursor_.x == kColumns - 1) {
+        newline();
+      } else {
+        ++cursor_.x;
+      }
+    }
+    ++s;
+  }
+  DrawCursor(true);
 }
 
 void TaskTerminal(uint64_t task_id, int64_t data) {
