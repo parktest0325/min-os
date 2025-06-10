@@ -113,7 +113,9 @@ alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref,
                             const MemoryMap& memory_map_ref,
-                            const acpi::RSDP& acpi_table) {
+                            const acpi::RSDP& acpi_table,
+                            void* volume_image
+                          ) {
   // 포인터를 전달받았지만 스택으로 이동
   MemoryMap memory_map{memory_map_ref};
   InitializeGraphics(frame_buffer_config_ref);
@@ -155,6 +157,22 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   usb::xhci::Initialize();
   InitializeKeyboard();
   InitializeMouse();
+
+  uint8_t* p = reinterpret_cast<uint8_t*>(volume_image);
+  printk("Volume Image:\n");
+  for (int i = 0; i < 16; ++i) {
+    printk("%04x:", i * 16);
+    for (int j = 0; j < 8; ++j) {
+      printk(" %02x", *p);
+      ++p;
+    }
+    printk(" ");
+    for (int j = 0; j < 8; ++j) {
+      printk(" %02x", *p);
+      ++p;
+    }
+    printk("\n");
+  }
 
   char str[128];
 
