@@ -30,6 +30,7 @@ $DEVENV_DIR/mount_image.sh $DISK_IMG $MOUNT_POINT
 sudo mkdir -p $MOUNT_POINT/EFI/BOOT
 sudo cp $EFI_FILE $MOUNT_POINT/EFI/BOOT/BOOTX64.EFI
 sudo cp $KERNEL_FILE $MOUNT_POINT/kernel.elf
+sudo cp ../apps/onlyhlt/onlyhlt $MOUNT_POINT/onlyhlt
 if [ "$ANOTHER_FILE" != "" ]
 then
     sudo cp $ANOTHER_FILE $MOUNT_POINT/
