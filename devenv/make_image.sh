@@ -10,8 +10,10 @@ DEVENV_DIR=$(dirname "$0")
 DISK_IMG=$1
 MOUNT_POINT=$2
 EFI_FILE=$3
-ANOTHER_FILE=$4
+APPS_DIR=$4
+ANOTHER_FILE=$5
 KERNEL_FILE=${DEVENV_DIR}/build/kernel.elf
+
 
 if [ ! -f $EFI_FILE ]
 then
@@ -30,7 +32,19 @@ $DEVENV_DIR/mount_image.sh $DISK_IMG $MOUNT_POINT
 sudo mkdir -p $MOUNT_POINT/EFI/BOOT
 sudo cp $EFI_FILE $MOUNT_POINT/EFI/BOOT/BOOTX64.EFI
 sudo cp $KERNEL_FILE $MOUNT_POINT/kernel.elf
-sudo cp ../apps/onlyhlt/onlyhlt $MOUNT_POINT/onlyhlt
+
+# 모든 앱 빌드 및 볼륨이미지에 복사
+for app_dir in $APPS_DIR/*; do
+    if [ -d "$app_dir" ]; then
+        make -C "$app_dir"
+        app_name=$(basename "$app_dir")
+        binary_path="$app_dir/$app_name"
+        if [ -f "$binary_path" ]; then
+            sudo cp "$binary_path" "$MOUNT_POINT/$app_name"
+        fi
+    fi
+done
+
 if [ "$ANOTHER_FILE" != "" ]
 then
     sudo cp $ANOTHER_FILE $MOUNT_POINT/
