@@ -248,7 +248,7 @@ void Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command,
 
   auto argv = MakeArgVector(command, first_arg);
   auto entry_addr = elf_header->e_entry;
-  entry_addr += reinterpret_cast<uintptr_t>(&file_buf[0]);
+  entry_addr += reinterpret_cast<uintptr_t>(&file_buf[0]) - 0x1000;
   using Func = int (int, char**);
   auto f = reinterpret_cast<Func*>(entry_addr);
   auto ret = f(argv.size(), &argv[0]);

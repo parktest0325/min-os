@@ -10,12 +10,8 @@ ASM = nasm
 LD = ld.lld
 RM = rm -f
 
-ifeq ($(DEBUG),1)
-	DDEBUG = -DDEBUG -O2 -g
-endif
-
-CFLAGS   += -O2 -Wall --target=x86_64-elf -ffreestanding -mno-red-zone
-CXXFLAGS += -O2 -Wall --target=x86_64-elf -ffreestanding -mno-red-zone \
+CFLAGS   += -Wall --target=x86_64-elf -ffreestanding -mno-red-zone
+CXXFLAGS += -Wall --target=x86_64-elf -ffreestanding -mno-red-zone \
             -fno-exceptions -fno-rtti -std=c++17
 
 CPPFLAGS += -I.
@@ -26,6 +22,16 @@ CPPFLAGS += -I$(ELFLIBDIR)/include/c++/v1 -I$(ELFLIBDIR)/include -I$(ELFLIBDIR)/
 
 LDFLAGS += --entry KernelMain -z norelro --image-base 0x100000 --static
 LDFLAGS += -L$(ELFLIBDIR)/lib -lc -lc++ -lc++abi
+
+
+ifeq ($(DEBUG),1)
+	CFLAGS		+= -O0 -g -DDEBUG
+	CXXFLAGS	+= -O0 -g -DDEBUG
+else
+	CFLAGS		+= -O2
+	CXXFLAGS	+= -O2
+endif
+
 
 MODULE_USB_SRC = $(shell find usb -name '*.cpp')
 MODULE_USB_OBJ = $(MODULE_USB_SRC:.cpp=.o)
