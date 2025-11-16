@@ -1,5 +1,7 @@
 #!/bin/sh -ex
 
+. ./buildenv.sh 
+
 DEVENV_DIR=$(dirname "$0")
 
 # 기본값
