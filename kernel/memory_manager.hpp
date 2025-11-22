@@ -63,4 +63,5 @@ private:
   void SetBit(FrameID frame, bool allocated);
 };
 
+extern BitmapMemoryManager* memory_manager;
 void InitializeMemoryManager(MemoryMap& memory_map);
