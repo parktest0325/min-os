@@ -130,6 +130,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   InitializePaging();
   printk("memory_map: %p\n", &memory_map);
   InitializeMemoryManager(memory_map);
+  InitializeTSS();
   InitializeInterrupt();
 
   fat::Initialize(volume_image);

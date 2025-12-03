@@ -132,6 +132,8 @@ SwitchContext:
 
     fxsave [rsi + 0xc0]
 
+global RestoreContext
+RestoreContext:  ; void RestoreContext(void* task_context);
     ; iret 을 위한 스택프레임 세팅 
     push qword [rdi + 0x28] ; SS
     push qword [rdi + 0x70] ; RSP
@@ -178,3 +180,77 @@ CallApp:
     push rdx    ; CS
     push r8     ; RIP
     o64 retf
+
+global LoadTR
+LoadTR: ; void LoadTR(uint16_t sel);
+    ltr di
+    ret
+
+extern LAPICTimerOnInterrupt
+; void LAPICTimerOnInterrupt(const TaskContext& ctx_stack);
+
+
+global IntHandlerLAPICTimer
+IntHandlerLAPICTimer:  ; void IntHandlerLAPICTimer();
+    push rbp
+    mov rbp, rsp
+
+    ; TaskContext를 스택에 push해두고 LAPICTimerOnInterrupt 함수 호출
+    sub rsp, 512
+    fxsave [rsp]
+    push r15
+    push r14
+    push r13
+    push r12
+    push r11
+    push r10
+    push r9
+    push r8
+    push qword [rbp]         ; RBP
+    push qword [rbp + 0x20]  ; RSP
+    push rsi
+    push rdi
+    push rdx
+    push rcx
+    push rbx
+    push rax
+
+    mov ax, fs
+    mov bx, gs
+    mov rcx, cr3
+
+    ; 인터럽트 발생 시점에 push된 레지스터들은 rbp를 통해 가져온다.
+    push rbx                 ; GS
+    push rax                 ; FS
+    push qword [rbp + 0x28]  ; SS
+    push qword [rbp + 0x10]  ; CS
+    push rbp                 ; reserved1
+    push qword [rbp + 0x18]  ; RFLAGS
+    push qword [rbp + 0x08]  ; RIP
+    push rcx                 ; CR3
+
+    ; rsp를 ctx_stack으로 지정함. void LAPICTimerOnInterrupt(const TaskContext& ctx_stack)
+    mov rdi, rsp
+    call LAPICTimerOnInterrupt
+
+    add rsp, 8*8  ; CR3 부터 GS 까지 무시
+    pop rax
+    pop rbx
+    pop rcx
+    pop rdx
+    pop rdi
+    pop rsi
+    add rsp, 16   ; RSP, RBP를 무시
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+    pop r12
+    pop r13
+    pop r14
+    pop r15
+    fxrstor [rsp]
+
+    mov rsp, rbp
+    pop rbp
+    iretq

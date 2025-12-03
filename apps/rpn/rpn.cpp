@@ -50,6 +50,7 @@ extern "C" int main(int argc, char** argv) {
     return 0;
   }
 
-  while (1);
+  while (1)
+    ;
   // return static_cast<int>(Pop());
 }
