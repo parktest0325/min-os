@@ -1,4 +1,5 @@
 TARGET = rpn
+OBJS = rpn.o syscall.o
 
 CPPFLAGS += -I.
 CFLAGS   += -O0 -Wall -g --target=x86_64-elf -ffreestanding
@@ -9,8 +10,11 @@ LDFLAGS += --entry main -z norelro --image-base 0xffff800000000000 --static
 .PHONY: all
 all: $(TARGET)
 
-rpn: rpn.o Makefile
-	ld.lld $(LDFLAGS) -o rpn rpn.o -lc -lc++ -lc++abi
+$(TARGET): $(OBJS) Makefile
+	ld.lld $(LDFLAGS) -o $@ $(OBJS) -lc -lc++ -lc++abi
 
 %.o: %.cpp Makefile
 	clang++ $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+	
+%.o: %.asm Makefile
+	nasm -f elf64 -o $@ $<

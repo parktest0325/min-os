@@ -449,7 +449,7 @@ Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command
 
   auto entry_addr = elf_header->e_entry;
                           // user cs, ss | RPL(3)
-  CallApp(argc.value, argv, 3 << 3 | 3, 4 << 3 | 3, entry_addr,
+  CallApp(argc.value, argv, 4 << 3 | 3, 3 << 3 | 3, entry_addr,
       stack_frame_addr.value + 4000 - 8);
 
   // char s[64];
