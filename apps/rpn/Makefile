@@ -1,8 +1,8 @@
 TARGET = rpn
-OBJS = rpn.o syscall.o
+OBJS = rpn.o syscall.o newlib_support.o
 
 CPPFLAGS += -I.
-CFLAGS   += -O0 -Wall -g --target=x86_64-elf -ffreestanding
+CFLAGS   += -O0 -Wall -g --target=x86_64-elf -ffreestanding -mcmodel=large 
 CXXFLAGS += -O0 -Wall -g --target=x86_64-elf -ffreestanding -mcmodel=large \
             -fno-exceptions -fno-rtti -std=c++17
 LDFLAGS += --entry main -z norelro --image-base 0xffff800000000000 --static
@@ -12,6 +12,9 @@ all: $(TARGET)
 
 $(TARGET): $(OBJS) Makefile
 	ld.lld $(LDFLAGS) -o $@ $(OBJS) -lc -lc++ -lc++abi
+
+%.o: %.c Makefile
+	clang $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 %.o: %.cpp Makefile
 	clang++ $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@

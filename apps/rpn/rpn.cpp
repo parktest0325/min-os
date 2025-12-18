@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "../../kernel/logger.hpp"
+#include <cstdio>
 
 int stack_ptr;
 long stack[100];
@@ -41,10 +42,11 @@ extern "C" int main(int argc, char** argv) {
     }
   }
 
-  if (stack_ptr < 0) {
-    return 0;
+  long result = 0;
+  if (stack_ptr >= 0) {
+    result = Pop();
   }
-  SyscallLogString(kWarn, "\nhello, this is rpn\n");
+  printf("%ld\n", result);
 
   while (1)
     ;

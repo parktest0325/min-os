@@ -2,7 +2,7 @@
 
 BASEDIR=/usr/local/src
 PREFIX=/usr/local/x86_64-elf
-COMMON_CFLAGS="-nostdlibinc -O2 -D__ELF__ -D_LDBL_EQ_DBL -D_GNU_SOURCE -D_POSIX_TIMERS"
+COMMON_CFLAGS="-nostdlibinc -O2 -D__ELF__ -D_LDBL_EQ_DBL -D_GNU_SOURCE -D_POSIX_TIMERS -mcmodel=large"
 CC=clang
 CXX=clang++
 TARGET_TRIPLE=x86_64-elf
