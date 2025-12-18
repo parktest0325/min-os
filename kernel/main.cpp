@@ -154,6 +154,9 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   InitializeSyscall();
   InitializeTask();
   Task& main_task = task_manager->CurrentTask();
+
+  // TaskID로 터미널을 찾아올 수 있는 매핑테이블
+  terminals = new std::map<uint64_t, Terminal*>;
   const uint64_t task_terminal_id = task_manager->NewTask()
     .InitContext(TaskTerminal, 0)
     .Wakeup()
