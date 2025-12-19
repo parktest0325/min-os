@@ -1,23 +1,3 @@
 TARGET = large
-OBJS = large.o ../syscall.o ../newlib_support.o
-
-CPPFLAGS += -I.
-CFLAGS   += -O0 -Wall -g --target=x86_64-elf -ffreestanding -mcmodel=large 
-CXXFLAGS += -O0 -Wall -g --target=x86_64-elf -ffreestanding -mcmodel=large \
-            -fno-exceptions -fno-rtti -std=c++17
-LDFLAGS += --entry main -z norelro --image-base 0xffff800000000000 --static
-
-.PHONY: all
-all: $(TARGET)
-
-$(TARGET): $(OBJS) Makefile
-	ld.lld $(LDFLAGS) -o $@ $(OBJS) -lc -lc++ -lc++abi
-
-%.o: %.c Makefile
-	clang $(CPPFLAGS) $(CFLAGS) -c $< -o $@
-
-%.o: %.cpp Makefile
-	clang++ $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
-	
-%.o: %.asm Makefile
-	nasm -f elf64 -o $@ $<
+OBJS = large.o
+include ../Makefile.elfapp
