@@ -171,15 +171,24 @@ RestoreContext:  ; void RestoreContext(void* task_context);
     o64 iret
 
 
-global CallApp  ; void CallApp(int argc, char** argv, uint16_t cs, uint16_t ss, uint64_t rip, uint64_t rsp);
-CallApp:
+global CallApp
+CallApp:  ; int CallApp(int argc, char** argv, uint16_t ss,
+          ;             uint64_t rip, uint64_t rsp, uint64_t* os_stack_ptr);
+    push rbx
     push rbp
-    mov rbp, rsp
-    push rcx    ; SS
-    push r9     ; RSP
-    push rdx    ; CS
-    push r8     ; RIP
-    o64 retf
+
+    push r12
+    push r13
+    push r14
+    push r15
+    mov [r9], rsp   ; param_6(r9): *os_stack_ptr = RSP
+
+    push rdx        ; SS
+    push r8         ; RSP
+    add rdx, 8      ; 어차피 SS와 CS가 붙어있음
+    push rdx        ; CS
+    push rcx        ; RIP
+    o64 retf        ; 애플리케이션으로 진입
 
 extern LAPICTimerOnInterrupt
 ; void LAPICTimerOnInterrupt(const TaskContext& ctx_stack);
@@ -272,6 +281,8 @@ SyscallEntry:
     push rcx  ; original RIP
     push r11  ; original RFLAGS
 
+    push rax  ; 시스템콜의 번호를 저장해둔다. (시스템콜 호출 후 아래에서 비교)
+
     mov rcx, r10
     and eax, 0x7fffffff
     mov rbp, rsp
@@ -283,7 +294,24 @@ SyscallEntry:
 
     mov rsp, rbp
 
+    pop rsi              ; 시스템콜 번호 복원
+    cmp esi, 0x80000002  ; exit인 경우
+    je .exit             ; exit 함수로 이동
+
     pop r11
     pop rcx
     pop rbp
     o64 sysret
+
+
+.exit:
+    mov rsp, rax  ; 시스템콜은 스택을 변경하지 않기 떄문에 커널스택으로 옮겨줘야 한다.
+    mov eax, edx
+
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbp
+    pop rbx
+    ret      ; CallApp의 다음줄로 점프한다. (CallApp에서 RIP를 push해둠)
