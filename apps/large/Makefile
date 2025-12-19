@@ -1,5 +1,5 @@
-TARGET = rpn
-OBJS = rpn.o ../syscall.o ../newlib_support.o
+TARGET = large
+OBJS = large.o ../syscall.o ../newlib_support.o
 
 CPPFLAGS += -I.
 CFLAGS   += -O0 -Wall -g --target=x86_64-elf -ffreestanding -mcmodel=large 
