@@ -34,6 +34,5 @@ extern "C" void main(int argc, char** argv) {
           num_stars,
           (tick_end.value - tick_start)*1000 / timer_freq);
 
-  SyscallCloseWindow(layer_id);
   exit(0);
 }
