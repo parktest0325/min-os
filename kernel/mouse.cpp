@@ -1,6 +1,7 @@
 #include "mouse.hpp"
 #include "graphics.hpp"
 #include "layer.hpp"
+#include "task.hpp"
 
 #include "usb/classdriver/mouse.hpp"
 
@@ -34,6 +35,30 @@ namespace {
   "               ",
   "               ",
   };
+}
+
+void SendMouseMessage(Vector2D<int> newpos, Vector2D<int> posdiff,
+                      uint8_t buttons) {
+  const auto act = active_layer->GetActive();
+  if (!act) {
+    return;
+  }
+  const auto layer = layer_manager->FindLayer(act);
+  const auto task_it = layer_task_map->find(act);
+  if (task_it == layer_task_map->end()) {
+    return;
+  }
+
+  if (posdiff.x != 0 || posdiff.y != 0) {
+    const auto relpos = newpos - layer->GetPosition();
+    Message msg{Message::kMouseMove};
+    msg.arg.mouse_move.x = relpos.x;
+    msg.arg.mouse_move.y = relpos.y;
+    msg.arg.mouse_move.dx = posdiff.x;
+    msg.arg.mouse_move.dy = posdiff.y;
+    msg.arg.mouse_move.buttons = buttons;
+    task_manager->SendMessage(task_it->second, msg);
+  }
 }
 
 void DrawMouseCursor(PixelWriter* pixel_writer, Vector2D<int> position) {
@@ -84,6 +109,10 @@ void Mouse::OnInterrupt(uint8_t buttons, int8_t displacement_x, int8_t displacem
     }
   } else if (previous_left_pressed && !left_pressed) {
     drag_layer_id_ = 0;
+  }
+  
+  if (drag_layer_id_ == 0) {
+    SendMouseMessage(newpos, posdiff, buttons);
   }
 
   previous_buttons_ = buttons;
