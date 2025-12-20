@@ -21,7 +21,7 @@ CPPFLAGS += -I$(ELFLIBDIR)/include/c++/v1 -I$(ELFLIBDIR)/include -I$(ELFLIBDIR)/
             -DEFIAPI='__attribute__((ms_abi))'
 
 LDFLAGS += --entry KernelMain -z norelro --image-base 0x100000 --static
-LDFLAGS += -L$(ELFLIBDIR)/lib -lc -lc++ -lc++abi
+LDFLAGS += -L$(ELFLIBDIR)/lib -lc -lc++ -lc++abi -lm
 
 
 ifeq ($(DEBUG),1)
