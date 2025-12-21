@@ -144,7 +144,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   acpi::Initialize(acpi_table);
   InitializeLAPICTimer();
-  timer_manager->AddTimer(Timer(60000, 1, 1));
+  timer_manager->AddTimer(Timer{60000, 1, 1});
 
   const int kTextboxCursorTimer = 17;
   const int kTimer05Sec = static_cast<int>(kTimerFreq * 0.5);
@@ -225,7 +225,9 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
       break;
     case Message::kKeyPush:
       if (auto act = active_layer->GetActive(); act == text_window_layer_id) {
-        InputTextWindow(msg->arg.keyboard.ascii);
+        if (msg->arg.keyboard.press) {
+          InputTextWindow(msg->arg.keyboard.ascii);
+        }
       } else {
         __asm__("cli");
         auto task_it = layer_task_map->find(act);
