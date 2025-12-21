@@ -22,7 +22,10 @@ void SetupIdentityPageTable() {
       page_directory[i_pdpt][i_pd] = i_pdpt * kPageSize1G + i_pd * kPageSize2M | 0x083;
     }
   }
+  ResetCR3();
+}
 
+void ResetCR3() {
   SetCR3(reinterpret_cast<uint64_t>(&pml4_table[0]));
 }
 
