@@ -30,6 +30,7 @@ public:
     kNoSuchTask,
     kInvalidFormat,
     kFrameTooSmall,
+    kInvalidFile,
     kLastOfCode,
   };
 
@@ -60,6 +61,7 @@ private:
     "kNoSuchTask",
     "kInvalidFormat",
     "kFrameTooSmall",
+    "kInvalidFile",
   };
   static_assert(Error::Code::kLastOfCode == code_names_.size());
 

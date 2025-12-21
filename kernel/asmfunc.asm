@@ -323,8 +323,14 @@ SyscallEntry:
 
 
 .exit:
-    mov rsp, rax  ; 시스템콜은 스택을 변경하지 않기 떄문에 커널스택으로 옮겨줘야 한다.
-    mov eax, edx
+    mov rdi, rax   ; 시스템콜은 스택을 변경하지 않기 떄문에 앱이 종료되면 태스크의 커널스택으로 옮겨줘야 한다.
+    mov esi, edx   ; exit(ret_val) -> ExitApp(OSStack, ret_val);
+    jmp ExitApp
+
+global ExitApp  ; void ExitApp(uint64_t rsp, int32_t ret_val);
+ExitApp:
+    mov rsp, rdi    ; .exit에서 왔으면 커널스택, 그게 아니라면 rsp, ret_val 세팅
+    mov eax, esi
 
     pop r15
     pop r14
