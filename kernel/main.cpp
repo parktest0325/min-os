@@ -157,14 +157,14 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   // TaskID로 터미널을 찾아올 수 있는 매핑테이블
   terminals = new std::map<uint64_t, Terminal*>;
-  const uint64_t task_terminal_id = task_manager->NewTask()
-    .InitContext(TaskTerminal, 0)
-    .Wakeup()
-    .ID();
 
   usb::xhci::Initialize();
   InitializeKeyboard();
   InitializeMouse();
+
+  task_manager->NewTask()
+    .InitContext(TaskTerminal, 0)
+    .Wakeup();
 
   uint8_t* p = reinterpret_cast<uint8_t*>(volume_image);
   printk("Volume Image:\n");
@@ -217,10 +217,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
         textbox_cursor_visible = !textbox_cursor_visible;
         DrawTextCursor(textbox_cursor_visible);
         layer_manager->Draw(text_window_layer_id);
-
-        __asm__("cli");
-        task_manager->SendMessage(task_terminal_id, *msg);
-        __asm__("sti");
       }
       break;
     case Message::kKeyPush:
@@ -228,6 +224,10 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
         if (msg->arg.keyboard.press) {
           InputTextWindow(msg->arg.keyboard.ascii);
         }
+      } else if (msg->arg.keyboard.press && msg->arg.keyboard.keycode == 59 /* F2 */) {
+        task_manager->NewTask()
+          .InitContext(TaskTerminal, 0)
+          .Wakeup();
       } else {
         __asm__("cli");
         auto task_it = layer_task_map->find(act);
