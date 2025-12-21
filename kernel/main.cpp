@@ -144,11 +144,11 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   acpi::Initialize(acpi_table);
   InitializeLAPICTimer();
-  timer_manager->AddTimer(Timer(60000, 1));
+  timer_manager->AddTimer(Timer(60000, 1, 1));
 
   const int kTextboxCursorTimer = 17;
   const int kTimer05Sec = static_cast<int>(kTimerFreq * 0.5);
-  timer_manager->AddTimer(Timer{kTimer05Sec, kTextboxCursorTimer});
+  timer_manager->AddTimer(Timer{kTimer05Sec, kTextboxCursorTimer, 1});
   bool textbox_cursor_visible = false;
 
   InitializeSyscall();
@@ -212,7 +212,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
       if (msg->arg.timer.value == kTextboxCursorTimer) {
         __asm__("cli");
         timer_manager->AddTimer(
-          Timer{msg->arg.timer.timeout + kTimer05Sec, kTextboxCursorTimer});
+          Timer{msg->arg.timer.timeout + kTimer05Sec, kTextboxCursorTimer, 1});
         __asm__("sti");
         textbox_cursor_visible = !textbox_cursor_visible;
         DrawTextCursor(textbox_cursor_visible);
