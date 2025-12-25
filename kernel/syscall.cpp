@@ -327,6 +327,10 @@ SYSCALL(OpenFile) {
     return { 0, EINVAL };
   }
 
+  if (strcmp(path, "@stdin") == 0) {
+    return { 0, 0 };
+  }
+
   auto [ dir, post_slash ] = fat::FindFile(path);
   if (dir == nullptr) {
     return { 0, ENOENT };

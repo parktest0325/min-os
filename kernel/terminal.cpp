@@ -11,6 +11,7 @@
 #include "memory_manager.hpp"
 #include "paging.hpp"
 #include "timer.hpp"
+#include "keyboard.hpp"
 
 namespace {
 
@@ -528,12 +529,13 @@ Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command
     return argc.error;
   }
 
+  task.Files().push_back(std::make_unique<TerminalFileDescriptor>(task, *this));
   auto entry_addr = elf_header->e_entry;
                                   // user ss | RPL(3)
   int ret = CallApp(argc.value, argv, 3 << 3 | 3, entry_addr,
                     stack_frame_addr.value + 4096 - 8,
                     &task.OSStackPointer());
-  
+  task.Files().clear();
 
   char s[64];
   sprintf(s, "app exited. ret = %d\n", ret);
@@ -701,5 +703,42 @@ void TaskTerminal(uint64_t task_id, int64_t data) {
     default:
       break;
     }
+  }
+}
+
+
+TerminalFileDescriptor::TerminalFileDescriptor(Task& task, Terminal& term)
+    : task_{task}, term_{term} {
+}
+
+size_t TerminalFileDescriptor::Read(void* buf, size_t len) {
+  char* bufc = reinterpret_cast<char*>(buf);
+
+  while (true) {
+    __asm__("cli");
+    auto msg = task_.ReceiveMessage();
+    if (!msg) {
+      task_.Sleep();
+      continue;
+    }
+    __asm__("sti");
+    
+    if (msg->type != Message::kKeyPush || !msg->arg.keyboard.press) {
+      continue;
+    }
+
+    if (msg->arg.keyboard.modifier & (kLControlBitMask | kRControlBitMask)) {
+      char s[3] = "^ ";
+      s[1] = toupper(msg->arg.keyboard.ascii);
+      term_.Print(s);
+      if (msg->arg.keyboard.keycode == 7 /* D */) {
+        return 0;
+      }
+      continue;
+    }
+
+    bufc[0] = msg->arg.keyboard.ascii;
+    term_.Print(bufc, 1);
+    return 1;
   }
 }

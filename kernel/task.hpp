@@ -38,7 +38,7 @@ public:
   Task& Wakeup();
   void SendMessage(const Message& msg);
   std::optional<Message> ReceiveMessage();
-  std::vector<std::unique_ptr<fat::FileDescriptor>>& Files();
+  std::vector<std::unique_ptr<::FileDescriptor>>& Files();
 
   int Level() const { return level_; }
   bool Running() const { return running_; }
@@ -51,7 +51,7 @@ private:
   std::deque<Message> msgs_;
   unsigned int level_{kDefaultLevel};
   bool running_{false};
-  std::vector<std::unique_ptr<fat::FileDescriptor>> files_{};
+  std::vector<std::unique_ptr<::FileDescriptor>> files_{};
 
   Task& SetLevel(int level) { level_ = level; return *this; }
   Task& SetRunning(bool running) { running_ = running; return *this; }
