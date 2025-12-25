@@ -31,6 +31,8 @@ public:
     kInvalidFormat,
     kFrameTooSmall,
     kInvalidFile,
+    kIsDirectory,
+    kNoSuchEntry,
     kLastOfCode,
   };
 
@@ -62,6 +64,8 @@ private:
     "kInvalidFormat",
     "kFrameTooSmall",
     "kInvalidFile",
+    "kIsDirectory",
+    "kNoSuchEntry",
   };
   static_assert(Error::Code::kLastOfCode == code_names_.size());
 
