@@ -160,6 +160,7 @@ uint32_t* GetFAT() {
     reinterpret_cast<uintptr_t>(boot_volume_image) + fat_offset);
 }
 
+// 빈 클러스터 공간을 찾고, fat에서 체인을 업데이트(연결) 하는 함수
 unsigned long ExtendCluster(unsigned long eoc_cluster, size_t n) {
   // FAT 영역에 클러스터 체인의 정보가 있다.
   uint32_t* fat = GetFAT();
@@ -266,6 +267,27 @@ WithError<DirectoryEntry*> CreateFile(const char* path) {
 }
 
 
+// 파일에 클러스터가 없을때 새로 할당하도록 호출하는 함수
+// fat에서 0인 공간을 찾아서 EOC나 클러스터 체인으로 채워넣고 첫 클러스터를 리턴
+unsigned long AllocateClusterChain(size_t n) {
+  uint32_t* fat = GetFAT();
+  unsigned long first_cluster;
+  // 첫번째 클러스터부터 빈곳을 찾는다.
+  for (first_cluster = 2; ; ++first_cluster) {
+    if (fat[first_cluster] == 0) {
+      fat[first_cluster] = kEndOfClusterchain;
+      break;
+    }
+  }
+
+  // 연속해서 그 위치부터 Extend
+  if (n > 1) {
+    ExtendCluster(first_cluster, n - 1);
+  }
+  return first_cluster;
+}
+
+
 
 FileDescriptor::FileDescriptor(DirectoryEntry& fat_entry)
     : fat_entry_{fat_entry} {
@@ -293,6 +315,52 @@ size_t FileDescriptor::Read(void* buf, size_t len) {
   }
 
   rd_off_ += total;
+  return total;
+}
+
+
+size_t FileDescriptor::Write(const void* buf, size_t len) {
+  auto num_cluster = [](size_t bytes) {
+    return (bytes + bytes_per_cluster - 1) / bytes_per_cluster;
+  };
+
+  // 처음 파일을 쓰는경우
+  if (wr_cluster_ == 0) {
+    // 클러스터가 있다면 그걸 가져옴
+    if (fat_entry_.FirstCluster() != 0) {
+      wr_cluster_ = fat_entry_.FirstCluster();
+    } else {
+      // 없으면 len만큼 저장할 수 있는 클러스터 할당 후 entry에 기록
+      wr_cluster_ = AllocateClusterChain(num_cluster(len));
+      fat_entry_.first_cluster_low = wr_cluster_ & 0xffff;
+      fat_entry_.first_cluster_high = (wr_cluster_ >> 16) & 0xffff;
+    }
+  }
+
+  const uint8_t* buf8 = reinterpret_cast<const uint8_t*>(buf);
+  size_t total = 0;
+  while (total < len) {
+    // 클러스터를 다 읽은 경우 다음 클러스터로 이동
+    if (wr_cluster_off_ == bytes_per_cluster) {
+      const auto next_cluster = NextCluster(wr_cluster_);
+      if (next_cluster == kEndOfClusterchain) {
+        wr_cluster_ = ExtendCluster(wr_cluster_, num_cluster(len - total));
+      } else {
+        wr_cluster_ = next_cluster;
+      }
+      wr_cluster_off_ = 0;
+    }
+
+    // 클러스터에 쓸수있는만큼 쓰기
+    uint8_t* sec = GetSectorByCluster<uint8_t>(wr_cluster_);
+    size_t n = std::min(len, bytes_per_cluster - wr_cluster_off_);
+    memcpy(&sec[wr_cluster_off_], &buf8[total], n);
+    wr_cluster_off_ += n;
+    total += n;
+  }
+
+  wr_off_ += total;
+  fat_entry_.file_size = wr_off_;
   return total;
 }
 
