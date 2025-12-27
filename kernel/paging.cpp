@@ -115,6 +115,33 @@ Error CleanPageMap(PageMapEntry* page_map, int page_map_level, LinearAddress4Lev
 } // namespace
 
 
+const FileMapping* FindFileMapping(const std::vector<FileMapping>& fmaps,
+                                   uint64_t causal_vaddr) {
+  for (const FileMapping& m : fmaps) {
+    if (m.vaddr_begin <= causal_vaddr && causal_vaddr < m.vaddr_end) {
+      return &m;
+    }
+  }
+  return nullptr;
+}
+
+Error PreparePageCache(FileDescriptor& fd, const FileMapping& m,
+                       uint64_t causal_vaddr) {
+  LinearAddress4Level page_vaddr{causal_vaddr};
+  // PF가 발생한 페이지 세팅 및 프레임 할당 (오프셋 값을 0으로세팅)
+  page_vaddr.parts.offset = 0;
+  if (auto err = SetupPageMaps(page_vaddr, 1)) {
+    return err;
+  }
+
+  // 복사할 파일에서의 오프셋 구함  (접근한페이지주소 - 접근한주소의시작)
+  const long file_offset = page_vaddr.value - m.vaddr_begin;
+  void* page_cache = reinterpret_cast<void*>(page_vaddr.value);
+  fd.Load(page_cache, 4096, file_offset);
+  return MAKE_ERROR(Error::kSuccess);
+}
+
+
 WithError<PageMapEntry*> NewPageMap() {
   auto frame = memory_manager->Allocate(1);
   if (frame.error) {
@@ -150,8 +177,11 @@ Error HandlePageFault(uint64_t error_code, uint64_t causal_addr) {
   if (error_code & 1) {
     return MAKE_ERROR(Error::kAlreadyAllocated);
   }
-  if (causal_addr < task.DPagingBegin() || task.DPagingEnd() <= causal_addr) {
-    return MAKE_ERROR(Error::kIndexOutOfRange);
+  if (task.DPagingBegin() <= causal_addr && causal_addr < task.DPagingEnd()) {
+    return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
   }
-  return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
+  if (auto m = FindFileMapping(task.FileMaps(), causal_addr)) {
+    return PreparePageCache(*task.Files()[m->fd], *m, causal_addr);
+  }
+  return MAKE_ERROR(Error::kIndexOutOfRange);
 }

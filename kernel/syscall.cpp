@@ -388,6 +388,31 @@ SYSCALL(DemandPages) {
 }
 
 
+SYSCALL(MapFile) {
+  const int fd = arg1;
+  size_t* file_size = reinterpret_cast<size_t*>(arg2);
+  // const int flags = arg3;
+
+  __asm__("cli");
+  auto& task = task_manager->CurrentTask();
+  __asm__("sti");
+
+  // 매핑할 파일이 open 되어있지 않은경우
+  if (fd < 0 || task.Files().size() <= fd || !task.Files()[fd]) {
+    return { 0, EBADF };
+  }
+
+  *file_size = task.Files()[fd]->Size();
+  const uint64_t vaddr_end = task.FileMapEnd();
+  // 파일을 결국 페이지단위로 정렬해서 배치해야함
+  const uint64_t vaddr_begin = (vaddr_end - *file_size) & 0xffff'ffff'ffff'f000;
+  // 다음 FileMapEnd
+  task.SetFileMapEnd(vaddr_begin);
+  task.FileMaps().push_back(FileMapping{fd, vaddr_begin, vaddr_end});
+  return { vaddr_begin, 0 };
+}
+
+
 #undef SYSCALL
 
 } // namespace syscall
@@ -395,7 +420,7 @@ SYSCALL(DemandPages) {
 using SyscallFuncType = syscall::Result (uint64_t, uint64_t, uint64_t,
                                          uint64_t, uint64_t, uint64_t);
 
-extern "C" std::array<SyscallFuncType*, 0xf> syscall_table {
+extern "C" std::array<SyscallFuncType*, 0x10> syscall_table {
   /* 0x00 */ syscall::LogString,
   /* 0x01 */ syscall::PutString,
   /* 0x02 */ syscall::Exit,
@@ -411,6 +436,7 @@ extern "C" std::array<SyscallFuncType*, 0xf> syscall_table {
   /* 0x0c */ syscall::OpenFile,
   /* 0x0d */ syscall::ReadFile,
   /* 0x0e */ syscall::DemandPages,
+  /* 0x0f */ syscall::MapFile,
 };
 
 void InitializeSyscall() {
