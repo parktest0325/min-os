@@ -15,28 +15,37 @@ extern "C" void main(int argc, char** argv) {
     exit(1);
   }
 
-  SyscallResult res = SyscallDemandPages(1, 0);
-  if (res.error) {
-    exit(1);
-  }
-  char* buf = reinterpret_cast<char*>(res.value);
-  char* buf0 = buf;
+  // SyscallResult res = SyscallDemandPages(1, 0);
+  // if (res.error) {
+  //   exit(1);
+  // }
+  char* buf = (char*)malloc(4096); // reinterpret_cast<char*>(res.value);
+  // char* buf0 = buf;
 
   size_t total = 0;
   size_t n;
-  while ((n = fread(buf, 1, 4096, fp)) == 4096) {
+
+  while ((n = fread(&buf[total], 1, 4096, fp)) > 0) {
     total += n;
-    if (res = SyscallDemandPages(1, 0); res.error) {
+    buf = (char*)realloc(buf, total + 4096);
+    if (buf == 0) {
       exit(1);
     }
-    buf += 4096;
   }
-  total += n;
+
+  // while ((n = fread(buf, 1, 4096, fp)) == 4096) {
+  //   total += n;
+  //   if (res = SyscallDemandPages(1, 0); res.error) {
+  //     exit(1);
+  //   }
+  //   buf += 4096;
+  // }
+  // total += n;
   printf("size of %s = %lu bytes\n", filename, total);
 
   size_t num = 0;
   for (int i = 0; i < total; ++i) {
-    if (buf0[i] == ch) {
+    if (buf[i] == ch) {
       ++num;
     }
   }
