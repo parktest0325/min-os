@@ -93,6 +93,15 @@ public:
   Error SendMessage(uint64_t id, const Message& msg);
   Task& CurrentTask();
 
+  size_t TotalTaskCount() { return tasks_.size(); }
+  size_t RunningTaskCount() { 
+    size_t sum = 0;
+    for (auto& x : running_) {
+      sum += x.size();
+    }
+    return sum; 
+  }
+
 private:
   std::vector<std::unique_ptr<Task>> tasks_{};
   uint64_t latest_id_{0};
