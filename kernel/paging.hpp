@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "error.hpp"
+
 const size_t kPageDirectoryCount = 64;
 
 void SetupIdentityPageTable();
@@ -71,3 +73,10 @@ union PageMapEntry {
     bits.addr = reinterpret_cast<uint64_t>(p) >> 12;
   }
 };
+
+
+WithError<PageMapEntry*> NewPageMap();
+Error FreePageMap(PageMapEntry* table);
+Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages);
+Error CleanPageMaps(LinearAddress4Level addr);
+Error HandlePageFault(uint64_t error_code, uint64_t causal_addr);

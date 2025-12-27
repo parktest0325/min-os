@@ -47,7 +47,7 @@ void SetCodeSegment(SegmentDescriptor& desc,
   desc.bits.available = 0;
   desc.bits.long_mode = 1;
   desc.bits.default_operation_size = 0;
-  desc.bits.granularity = 1;
+  desc.bits.granularity = 1;     // limit을 페이지단위로 인식 (64bit에선 안해도되지만 관례임). limit 0xFFFFF == 4GB
 }
 
 void SetDataSegment(SegmentDescriptor& desc,
