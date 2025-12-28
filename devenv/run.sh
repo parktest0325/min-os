@@ -40,8 +40,9 @@ DISK_IMG=./build/disk.img
 MOUNT_POINT=./mnt
 APPS_DIR=../apps
 APPS_DEST_DIR=apps
+RESOURCE_DIR=../resource
 
 # 실행
 $DEVENV_DIR/build-kernel.sh "$DEBUG_MODE"
-$DEVENV_DIR/make_image.sh "$DISK_IMG" "$MOUNT_POINT" "$EFI_FILE" "$APPS_DIR" "$APPS_DEST_DIR" "$ANOTHER_FILE"
+$DEVENV_DIR/make_image.sh "$DISK_IMG" "$MOUNT_POINT" "$EFI_FILE" "$APPS_DIR" "$APPS_DEST_DIR" "$RESOURCE_DIR" "$ANOTHER_FILE"
 $DEVENV_DIR/start_qemu.sh "$DISK_IMG" "$DEBUG_MODE"

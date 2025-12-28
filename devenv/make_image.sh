@@ -12,7 +12,8 @@ MOUNT_POINT=$2
 EFI_FILE=$3
 APPS_DIR=$4
 APPS_DEST_DIR=$5
-ANOTHER_FILE=$6
+RESOURCE_DIR=$6
+ANOTHER_FILE=$7
 KERNEL_FILE=${DEVENV_DIR}/build/kernel.elf
 
 
@@ -46,6 +47,11 @@ for app_dir in $APPS_DIR/*; do
         fi
     fi
 done
+
+if [ "$RESOURCE_DIR" != "" ]
+then
+    sudo cp -r $RESOURCE_DIR $MOUNT_POINT/
+fi
 
 if [ "$ANOTHER_FILE" != "" ]
 then
