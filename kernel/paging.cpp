@@ -1,6 +1,7 @@
 #include "paging.hpp"
 #include "memory_manager.hpp"
 #include "task.hpp"
+#include "logger.hpp"
 
 #include "asmfunc.h"
 
@@ -25,6 +26,7 @@ void SetupIdentityPageTable() {
     }
   }
   ResetCR3();
+  SetCR0(GetCR0() & 0xfffeffff); // Clear WP
 }
 
 void ResetCR3() {
@@ -55,7 +57,8 @@ WithError<PageMapEntry*> SetNewPageMapIfNotPresent(PageMapEntry& entry) {
 }
 
 WithError<size_t> SetupPageMap(
-    PageMapEntry* page_map, int page_map_level, LinearAddress4Level addr, size_t num_4kpages) {
+    PageMapEntry* page_map, int page_map_level, LinearAddress4Level addr,
+    size_t num_4kpages, bool writable) {
   while (num_4kpages > 0) {
     const auto entry_index = addr.Part(page_map_level);
 
@@ -63,13 +66,16 @@ WithError<size_t> SetupPageMap(
     if (err) {
       return { num_4kpages, err };
     }
-    page_map[entry_index].bits.writable = 1;
     page_map[entry_index].bits.user = 1;
 
     if (page_map_level == 1) {
+      page_map[entry_index].bits.writable = writable;
       --num_4kpages;
     } else {
-      auto [ num_remain_pages, err ] = SetupPageMap(child_map, page_map_level - 1, addr, num_4kpages);
+      page_map[entry_index].bits.writable = true;
+
+      auto [ num_remain_pages, err ] =
+          SetupPageMap(child_map, page_map_level - 1, addr, num_4kpages, writable);
       if (err) {
         return { num_4kpages, err };
       }
@@ -100,15 +106,50 @@ Error CleanPageMap(PageMapEntry* page_map, int page_map_level, LinearAddress4Lev
         return err;
       }
     }
-    const auto entry_addr = reinterpret_cast<uintptr_t>(entry.Pointer());
-    const FrameID map_frame{entry_addr / kBytesPerFrame};
-    if (auto err = memory_manager->Free(map_frame, 1)) {
-      return err;
+
+    if (entry.bits.writable) {
+      const auto entry_addr = reinterpret_cast<uintptr_t>(entry.Pointer());
+      const FrameID map_frame{entry_addr / kBytesPerFrame};
+      if (auto err = memory_manager->Free(map_frame, 1)) {
+        return err;
+      }
     }
     page_map[i].data = 0;
   }
 
   return MAKE_ERROR(Error::kSuccess);
+}
+
+
+// 페이지테이블을 재귀적으로 타고들어가면서 실제 물리주소를 content로 세팅하는 함수
+// writable 도 1로 세팅
+Error SetPageContent(PageMapEntry* table, int part,
+                     LinearAddress4Level addr, PageMapEntry* content) {
+  if (part == 1) {
+    const auto i = addr.Part(part);
+    table[i].SetPointer(content);
+    table[i].bits.writable = 1;
+    InvalidateTLB(addr.value);
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  const auto i = addr.Part(part);
+  return SetPageContent(table[i].Pointer(), part - 1, addr, content);
+}
+
+
+Error CopyOnePage(uint64_t causal_addr) {
+  auto [ p, err ] = NewPageMap();
+  if (err) {
+    return err;
+  }
+  // #PF 발생한 주소에 해당하는 페이지 찾음
+  const auto aligned_addr = causal_addr & 0xffff'ffff'ffff'f000;
+  // 새로운 페이지(=프레임)에 내용 전부 복사
+  memcpy(p, reinterpret_cast<const void*>(aligned_addr), 4096);
+  // 프레임을 현재 페이지테이블 말단에 세팅하면서 writable=1 로 세팅
+  return SetPageContent(reinterpret_cast<PageMapEntry*>(GetCR3()), 4,
+                        LinearAddress4Level{causal_addr}, p);
 }
 
 
@@ -160,9 +201,9 @@ Error FreePageMap(PageMapEntry* table) {
 }
 
 
-Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages) {
+Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages, bool writable) {
   auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
-  return SetupPageMap(pml4_table, 4, addr, num_4kpages).error;
+  return SetupPageMap(pml4_table, 4, addr, num_4kpages, writable).error;
 }
 
 
@@ -171,12 +212,55 @@ Error CleanPageMaps(LinearAddress4Level addr) {
   return CleanPageMap(pml4_table, 4, addr);
 }
 
+
+Error CopyPageMaps(PageMapEntry* dest, PageMapEntry* src, int part, int start) {
+  // page_table[0:512] 세팅
+  if (part == 1) {
+    for (int i = start; i < 512; ++i) {
+      if (!src[i].bits.present) {
+        continue;
+      }
+      dest[i] = src[i];            // 물리주소 복사
+      dest[i].bits.writable = 0;   // readonly 세팅
+    }
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  // 처음들어오면 (part==4) pml4_table[256:512] 세팅
+  // 재귀적으로 들어오면 pdpt_table[0:512], pd_table[0:512] 세팅
+  for (int i = start; i < 512; ++i) {
+    if (!src[i].bits.present) {
+      continue;
+    }
+    // page_table(part==1)이 아니라면 새로운 페이지를 생성해서 연결
+    auto [ table, err ] = NewPageMap();
+    if (err) {
+      return err;
+    }
+    dest[i] = src[i];          // src에서 속성까지 전부 복사
+    dest[i].SetPointer(table); // 방금만든 페이지 물리 주소를 저장
+    if (auto err = CopyPageMaps(table, src[i].Pointer(), part - 1, 0)) {
+      return err;
+    }
+  }
+  return MAKE_ERROR(Error::kSuccess);
+}
+
+
 Error HandlePageFault(uint64_t error_code, uint64_t causal_addr) {
   auto& task = task_manager->CurrentTask();
-  // 페이지레벨 권한 위반 예외. 이건 디맨드페이징 처리를 하면 안된다.
-  if (error_code & 1) {
+  const bool present = (error_code >> 0) & 1;
+  const bool rw      = (error_code >> 1) & 1;
+  const bool user    = (error_code >> 2) & 1;
+
+  if (present && rw && user) {
+    // 페이지가 있지만, write 로 권한에러 발생, user 앱인 경우. 페이지복사해줌
+    return CopyOnePage(causal_addr);
+  } else if (present) {
+    // 페이지레벨 권한 위반 예외. 이건 디맨드페이징 처리를 하면 안된다.
     return MAKE_ERROR(Error::kAlreadyAllocated);
   }
+
   if (task.DPagingBegin() <= causal_addr && causal_addr < task.DPagingEnd()) {
     return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
   }
