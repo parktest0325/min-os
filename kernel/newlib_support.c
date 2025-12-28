@@ -28,6 +28,11 @@ int kill(int pid, int sig) {
   return -1;
 }
 
+int open(const char* path, int flags) {
+  errno = ENOENT;
+  return -1;
+}
+
 int close(int fd) {
   errno = EBADF;
   return -1;

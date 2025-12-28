@@ -33,6 +33,7 @@ public:
     kInvalidFile,
     kIsDirectory,
     kNoSuchEntry,
+    kFreeTypeError,
     kLastOfCode,
   };
 
@@ -65,6 +66,7 @@ private:
     "kFrameTooSmall",
     "kInvalidFile",
     "kIsDirectory",
+    "kFreeTypeError",
     "kNoSuchEntry",
   };
   static_assert(Error::Code::kLastOfCode == code_names_.size());
