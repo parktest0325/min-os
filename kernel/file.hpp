@@ -14,3 +14,4 @@ public:
 };
 
 size_t PrintToFD(FileDescriptor& fd, const char* format, ...);
+size_t ReadDelim(FileDescriptor& fd, char delim, char* buf, size_t len);

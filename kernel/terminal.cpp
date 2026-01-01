@@ -461,18 +461,13 @@ void Terminal::ExecuteLine() {
       exit_code = 1;
     } else {
       fat::FileDescriptor fd{*file_entry};
-      char u8buf[5];
+      char u8buf[1024];
 
       DrawCursor(false);
       while (true) {
-        if (fd.Read(&u8buf[0], 1) != 1) {
+        if (ReadDelim(fd, '\n', u8buf, sizeof(u8buf)) == 0) {
           break;
         }
-        const int u8_remain = CountUTF8Size(u8buf[0]) - 1;
-        if (u8_remain > 0 && fd.Read(&u8buf[1], u8_remain) != u8_remain) {
-          break;
-        }
-        u8buf[u8_remain + 1] = 0;
         PrintToFD(*files_[1], "%s", u8buf);
       }
       DrawCursor(true);
@@ -649,6 +644,19 @@ void Terminal::Print(const char* s, std::optional<size_t> len) {
   __asm__("sti");
 }
 
+
+void Terminal::Redraw() {
+  Rectangle<int> draw_area{ToplevelWindow::kTopLeftMargin,
+                           window_->InnerSize()};
+
+  Message msg = MakeLayerMessage(
+    task_.ID(), LayerID(), LayerOperation::DrawArea, draw_area);
+  __asm__("cli");
+  task_manager->SendMessage(1, msg);
+  __asm__("sti");
+}
+
+
 Rectangle<int> Terminal::HistoryUpDown(int direction) {
   if (direction == -1 && cmd_history_index_ >= 0) {
     --cmd_history_index_;
@@ -794,12 +802,14 @@ size_t TerminalFileDescriptor::Read(void* buf, size_t len) {
 
     bufc[0] = msg->arg.keyboard.ascii;
     term_.Print(bufc, 1);
+    term_.Redraw();
     return 1;
   }
 }
 
 size_t TerminalFileDescriptor::Write(const void* buf, size_t len) {
   term_.Print(reinterpret_cast<const char*>(buf), len);
+  term_.Redraw();
   return len;
 }
 
