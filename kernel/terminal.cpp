@@ -526,7 +526,7 @@ void Terminal::ExecuteLine() {
         p_stat.total_frames * kBytesPerFrame / 1024 / 1024);
 
   } else if (command[0] != 0) {
-    auto file_entry = fat::FindCommand(command);
+    auto file_entry = FindCommand(command);
     if (!file_entry) {
       PrintToFD(*files_[2], "no such command: %s\n", command);
       exit_code = 1;
