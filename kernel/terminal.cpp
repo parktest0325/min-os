@@ -567,7 +567,7 @@ WithError<int> Terminal::ExecuteFile(fat::DirectoryEntry& file_entry, char* comm
     return { 0, err };
   }
 
-  const int stack_size = 8 * 4096;
+  const int stack_size = 0x100 * 4096;
   LinearAddress4Level stack_frame_addr{0xffff'ffff'ffff'f000 - stack_size};
   if (auto err = SetupPageMaps(stack_frame_addr, stack_size / 4096)) {
     return { 0, err };
