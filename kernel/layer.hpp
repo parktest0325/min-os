@@ -93,3 +93,5 @@ constexpr Message MakeLayerMessage(
   msg.arg.layer.h = area.size.y;
   return msg;
 }
+
+Error CloseLayer(unsigned int layer_id);
