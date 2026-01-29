@@ -304,11 +304,11 @@ EFI_STATUS EFIAPI UefiMain(
   // #@@range_begin(main)
   CHAR8 memmap_buf[4096 * 4];
   struct MemoryMap memmap = {sizeof(memmap_buf), memmap_buf, 0, 0, 0, 0};
-  GetMemoryMap(&memmap);
+  status = GetMemoryMap(&memmap);
   _IfErrorHalt(L"get memory map Failed", status);
 
   EFI_FILE_PROTOCOL* root_dir;
-  OpenRootDir(image_handle, &root_dir);
+  status = OpenRootDir(image_handle, &root_dir);
   _IfErrorHalt(L"OpenRootDir Failed", status);
 
   EFI_FILE_PROTOCOL* memmap_file;
@@ -322,7 +322,7 @@ EFI_STATUS EFIAPI UefiMain(
     status = SaveMemoryMap(&memmap, memmap_file);
     _IfErrorHalt(L"SaveMemoryMap Failed", status);
 
-    memmap_file->Close(memmap_file);
+    status = memmap_file->Close(memmap_file);
     _IfErrorHalt(L"close memory map Failed", status);
   }
   // #@@range_end(main)
@@ -330,7 +330,7 @@ EFI_STATUS EFIAPI UefiMain(
 
   // #@@range_begin(draw)
   EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
-  OpenGOP(image_handle, &gop);
+  status = OpenGOP(image_handle, &gop);
   _IfErrorHalt(L"OpenGOP Failed", status);
 
   Print(L"Resolution: %ux%u, Pixel Format: %s, %u pixels/line\n",
@@ -347,7 +347,7 @@ EFI_STATUS EFIAPI UefiMain(
 
   // #@@range_begin(read_kernel)
   EFI_FILE_PROTOCOL* kernel_file;
-  root_dir->Open(
+  status = root_dir->Open(
       root_dir, &kernel_file, L"\\kernel.elf",
       EFI_FILE_MODE_READ, 0);
   _IfErrorHalt(L"open file '\\kernel.elf' Failed", status);

@@ -3,5 +3,6 @@ devenv/**/
 kernel/kernel.elf
 kernel/**/*.o
 apps/**/*.o
+docs
 
 .gdb_history
