@@ -35,12 +35,30 @@ void check_cpu_mode() {
 // #@@range_end(check_cpu_mode)
 
 // #@@range_begin(get_memory_map)
+// main 의 스택에서 만든 map 변수는 하나로 두고 여러번 호출되는 경우 이전 버퍼는 반납한다.
+// 처음에는 사이즈를 0으로 세팅하고 호출해서 필요한 크기를 알아온다.
+// 해당 크기만큼(+여유분) 동적할당 후 한번 더 요청
 EFI_STATUS GetMemoryMap(struct MemoryMap* map) {
-  if (map->buffer == NULL) {
-    return EFI_BUFFER_TOO_SMALL;
+  EFI_STATUS status;
+  if (map->buffer != NULL) {
+    gBS->FreePool(map->buffer);
+    map->buffer = NULL;
   }
 
-  map->map_size = map->buffer_size;
+  map->map_size = 0;
+  gBS->GetMemoryMap(
+      &map->map_size,
+      NULL,
+      &map->map_key,
+      &map->descriptor_size,
+      &map->descriptor_version);
+
+  map->map_size += map->descriptor_size * 2;
+  map->buffer_size = map->map_size;
+
+  status = gBS->AllocatePool(EfiLoaderData, map->map_size, &map->buffer);
+  if (EFI_ERROR(status)) return status;
+
   return gBS->GetMemoryMap(
       &map->map_size,
       (EFI_MEMORY_DESCRIPTOR*)map->buffer,
@@ -81,7 +99,7 @@ EFI_STATUS SaveMemoryMap(struct MemoryMap* map, EFI_FILE_PROTOCOL* file) {
   UINTN len;
 
   CHAR8* header =
-    "Index, Type, Type(name), PhysicalStart, NumberOfPages, Attribute\n";
+    "Index | PhysicalStart -> VirtualStart | Type, Type(name), NumberOfPages, Attribute\n";
   len = AsciiStrLen(header);
   file->Write(file, &len, header);
 
@@ -224,17 +242,14 @@ EFI_STATUS ReadFile(EFI_FILE_PROTOCOL* file, VOID** buffer) {
   status = file->GetInfo(
     file, &gEfiFileInfoGuid,
     &file_info_size, file_info_buffer);
-  if (EFI_ERROR(status)) {
-    return status;
-  }
+  if (EFI_ERROR(status)) return status;
 
   EFI_FILE_INFO* file_info = (EFI_FILE_INFO*)file_info_buffer;
   UINTN file_size = file_info->FileSize;
 
   status = gBS->AllocatePool(EfiLoaderData, file_size, buffer);
-  if (EFI_ERROR(status)) {
-    return status;
-  }
+  if (EFI_ERROR(status)) return status;
+
   return file->Read(file, &file_size, *buffer);
 }
 
@@ -250,9 +265,7 @@ EFI_STATUS OpenBlockIoProtocolForLoadedImage(
     image_handle,
     NULL,
     EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
-  if (EFI_ERROR(status)) {
-    return status;
-  }
+  if (EFI_ERROR(status)) return status;
 
   status = gBS->OpenProtocol(
     loaded_image->DeviceHandle,
@@ -270,9 +283,7 @@ EFI_STATUS ReadBlocks(
   EFI_STATUS status;
 
   status = gBS->AllocatePool(EfiLoaderData, read_bytes, buffer);
-  if (EFI_ERROR(status)) {
-    return status;
-  }
+  if (EFI_ERROR(status)) return status;
 
   status = block_io->ReadBlocks(
     block_io,
@@ -302,8 +313,7 @@ EFI_STATUS EFIAPI UefiMain(
   Print(L"Base = %p\n", LoadedImage->ImageBase);
 
   // #@@range_begin(main)
-  CHAR8 memmap_buf[4096 * 4];
-  struct MemoryMap memmap = {sizeof(memmap_buf), memmap_buf, 0, 0, 0, 0};
+  struct MemoryMap memmap = {0, NULL, 0, 0, 0, 0};
   status = GetMemoryMap(&memmap);
   _IfErrorHalt(L"get memory map Failed", status);
 
@@ -312,7 +322,7 @@ EFI_STATUS EFIAPI UefiMain(
   _IfErrorHalt(L"OpenRootDir Failed", status);
 
   EFI_FILE_PROTOCOL* memmap_file;
-  root_dir->Open(
+  status = root_dir->Open(
       root_dir, &memmap_file, L"\\memmap",
       EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
   if (EFI_ERROR(status)) {
