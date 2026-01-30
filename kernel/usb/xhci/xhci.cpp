@@ -560,7 +560,11 @@ namespace usb::xhci {
     Log(kDebug, "ReadBar: %s(%d)\n", xhc_bar.error.Name(), xhc_bar.value);
     uint64_t xhc_mmio_base = xhc_bar.value & ~static_cast<uint64_t>(0xf);
     Log(kDebug, "xHC mmio_base = %08lx\n", xhc_mmio_base);
-  
+
+    uint32_t cmd = pci::ReadConfReg(*xhc_dev, 0x04);
+    cmd |= (1 << 1) | (1 << 2);  // Bus Master (b0010) | Memory Space (b0001)
+    pci::WriteConfReg(*xhc_dev, 0x04, cmd); 
+
     usb::xhci::controller = new Controller{xhc_mmio_base};
     Controller& xhc = *usb::xhci::controller;
   
