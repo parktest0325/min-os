@@ -203,6 +203,11 @@ namespace {
       return ResetPort(xhc, port);
     case ConfigPhase::kResettingPort:
       return EnableSlot(xhc, port);
+    case ConfigPhase::kWaitingAddressed:
+        // 다른 포트가 주소 할당 중. 이 이벤트는 무시.
+        // 어차피 할당중인 포트가 작업이 완료되면 OnEvent(CommandCompletionEvent)에서 
+        // kWaitingAddressed인 포트를 찾아 ResetPort를 다시 호출하도록 되어있다.
+        return MAKE_ERROR(Error::kSuccess);
     default:
       return MAKE_ERROR(Error::kInvalidPhase);
     }
