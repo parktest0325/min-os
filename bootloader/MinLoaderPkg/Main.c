@@ -294,6 +294,29 @@ EFI_STATUS ReadBlocks(
   return status;
 }
 
+EFI_STATUS ReadBlocksChunked(
+    EFI_BLOCK_IO_PROTOCOL* block_io, UINT32 media_id,
+    UINTN total_bytes, VOID* buffer) {
+  UINT32 block_size = block_io->Media->BlockSize;
+  UINTN chunk_size = 64 * 1024;  // 64KB씩
+  UINT8* dst = (UINT8*)buffer;
+  EFI_LBA lba = 0;
+
+  for (UINTN offset = 0; offset < total_bytes; offset += chunk_size) {
+    UINTN read_size = chunk_size;
+    if (offset + read_size > total_bytes) {
+      read_size = total_bytes - offset;
+    }
+
+    EFI_STATUS status = block_io->ReadBlocks(
+        block_io, media_id, lba, read_size, dst + offset);
+    if (EFI_ERROR(status)) return status;
+
+    lba += read_size / block_size;
+  }
+  return EFI_SUCCESS;
+}
+
 EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
     EFI_SYSTEM_TABLE* system_table) {
@@ -385,30 +408,44 @@ EFI_STATUS EFIAPI UefiMain(
   // #@@range_begin(read_volume)
   VOID* volume_image;
 
-  EFI_FILE_PROTOCOL* volume_file;
-  status = root_dir->Open(
-    root_dir, &volume_file, L"\\fat_disk",
-    EFI_FILE_MODE_READ, 0);
-  if (status == EFI_SUCCESS) {
-    status = ReadFile(volume_file, &volume_image);
-    _IfErrorHalt(L"failed to open Block I/O Protocol", status);
-  } else {
-    EFI_BLOCK_IO_PROTOCOL* block_io;
-    status = OpenBlockIoProtocolForLoadedImage(image_handle, &block_io);
-    _IfErrorHalt(L"failed to open Block I/O Protocol", status);
+  EFI_BLOCK_IO_PROTOCOL* block_io;
+  // 부트로더가 포함된 디바이스의 block_io 획득
+  status = OpenBlockIoProtocolForLoadedImage(image_handle, &block_io);
+  _IfErrorHalt(L"failed to open Block I/O Protocol", status);
 
-    EFI_BLOCK_IO_MEDIA* media = block_io->Media;
-    UINTN volume_bytes = (UINTN)media->BlockSize * (media->LastBlock + 1);
-    if (volume_bytes > 32 * 1024 * 1024) {
-      volume_bytes = 32 * 1024 * 1024;
-    }
+  EFI_BLOCK_IO_MEDIA* media = block_io->Media;
+  Print(L"LogicalPartition=%d, BlockSize=%u, IoAlign=%u, LastBlock=%u, MediaId=%u, MP=%u\n",
+    media->LogicalPartition, media->BlockSize, media->IoAlign, media->LastBlock, media->MediaId, media->MediaPresent);
 
-    Print(L"Reading &lu bytes (Present %d, BlockSize %u, Lastblock %u)\n",
-      volume_bytes, media->MediaPresent, media->BlockSize, media->LastBlock);
-
-    status = ReadBlocks(block_io, media->MediaId, volume_bytes, &volume_image);
-    _IfErrorHalt(L"failed to read blocks", status);
+  UINTN volume_bytes = (UINTN)media->BlockSize * (media->LastBlock + 1);
+  if (volume_bytes > 128 * 1024 * 1024) {
+    volume_bytes = 128 * 1024 * 1024;
   }
+
+  num_pages = (volume_bytes + 0xFFF) / 0x1000;
+  EFI_PHYSICAL_ADDRESS addr;
+  status = gBS->AllocatePages(AllocateAnyPages, EfiLoaderData,
+                              num_pages, &addr);
+  _IfErrorHalt(L"AllocatePages failed", status);
+  volume_image = (VOID*)addr;
+
+  status = ReadBlocksChunked(block_io, media->MediaId,
+                             volume_bytes, volume_image);
+  _IfErrorHalt(L"ReadBlocksChunked failed", status);
+
+
+  // status = ReadBlocks(block_io, media->MediaId, volume_bytes, &volume_image);
+  // Print(L"[DBG] ReadBlocks status: %r\n", status);
+  // Print(L"volume_image=%p\n", volume_image);
+  // _IfErrorHalt(L"failed to read blocks", status);
+
+  // UINT8* p = (UINT8*)volume_image;
+  // for (int i = 0; i < 32; ++i) {
+  //   Print(L"%02x ", p[i]);
+  // }
+  // Print(L"\n");
+
+  // Halt();
   // #@@range_end(read_volume)
 
   // #@@range_begin(stop_bootservice)

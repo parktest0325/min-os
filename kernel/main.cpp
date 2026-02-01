@@ -127,6 +127,22 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   printk("Welcome to Min-OS!\n");
   SetLogLevel(kWarn);
 
+  uint8_t* p = reinterpret_cast<uint8_t*>(volume_image);
+  printk("Volume Image: %p\n", volume_image);
+  for (int i = 0; i < 16; ++i) {
+    printk("%04x:", i * 16);
+    for (int j = 0; j < 8; ++j) {
+      printk(" %02x", *p);
+      ++p;
+    }
+    printk(" ");
+    for (int j = 0; j < 8; ++j) {
+      printk(" %02x", *p);
+      ++p;
+    }
+    printk("\n");
+  }
+
   InitializeSegmentation();
   InitializePaging();
   printk("memory_map: %p\n", &memory_map);
@@ -164,25 +180,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   InitializeMouse();
 
   app_loads = new std::map<fat::DirectoryEntry*, AppLoadInfo>;
-  task_manager->NewTask()
-    .InitContext(TaskTerminal, 0)
-    .Wakeup();
-
-  uint8_t* p = reinterpret_cast<uint8_t*>(volume_image);
-  printk("Volume Image:\n");
-  for (int i = 0; i < 16; ++i) {
-    printk("%04x:", i * 16);
-    for (int j = 0; j < 8; ++j) {
-      printk(" %02x", *p);
-      ++p;
-    }
-    printk(" ");
-    for (int j = 0; j < 8; ++j) {
-      printk(" %02x", *p);
-      ++p;
-    }
-    printk("\n");
-  }
 
   char str[128];
 
