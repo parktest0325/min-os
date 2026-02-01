@@ -7,7 +7,6 @@ enum LogLevel {
   kDebug = 7,
 };
 
-
 void SetLogLevel(enum LogLevel level);
-
+void InitializeLogFile();
 int Log(enum LogLevel level, const char* format, ...);

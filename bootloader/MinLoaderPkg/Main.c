@@ -17,6 +17,28 @@
 #include "frame_buffer_config.hpp"
 #include "memory_map.hpp"
 
+#define LOG_PRINT(fmt, ...) do { \
+  CHAR16 _logbuf[512]; \
+  UnicodeSPrint(_logbuf, sizeof(_logbuf), fmt, ##__VA_ARGS__); \
+  LogWrite(_logbuf); \
+} while(0)
+
+static EFI_FILE_PROTOCOL* g_log_file = NULL;
+
+// 로그 출력 및 화면에 출력
+void LogWrite(CHAR16* msg) {
+  CHAR8 ascii[512];
+
+  Print(L"%s", msg);
+
+  if (g_log_file != NULL) {
+    UnicodeStrToAsciiStrS(msg, ascii, sizeof(ascii));
+    UINTN len = AsciiStrLen(ascii);
+    g_log_file->Write(g_log_file, &len, ascii);
+    g_log_file->Flush(g_log_file);
+  }
+}
+
 // #@@range_begin(check_cpu_mode)
 void check_cpu_mode() {
   uint64_t cr0, cr4, efer;
@@ -24,12 +46,12 @@ void check_cpu_mode() {
   __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
   __asm__ volatile("rdmsr" : "=A"(efer) : "c"(0xC0000080));  // IA32_EFER
 
-  Print(L"CR0 = 0x%08llx\n", cr0);
-  Print(L"CR4 = 0x%08llx\n", cr4);
-  Print(L"EFER = 0x%08llx\n", efer);
+  LOG_PRINT(L"CR0 = 0x%08llx\n", cr0);
+  LOG_PRINT(L"CR4 = 0x%08llx\n", cr4);
+  LOG_PRINT(L"EFER = 0x%08llx\n", efer);
 
   if (efer & (1 << 10)) {
-    Print(L"=> Long Mode Active (LMA = 1)\n");
+    LOG_PRINT(L"=> Long Mode Active (LMA = 1)\n");
   }
 }
 // #@@range_end(check_cpu_mode)
@@ -103,7 +125,7 @@ EFI_STATUS SaveMemoryMap(struct MemoryMap* map, EFI_FILE_PROTOCOL* file) {
   len = AsciiStrLen(header);
   file->Write(file, &len, header);
 
-  Print(L"map->buffer = %08lx, map->map_size = %08lx\n",
+  LOG_PRINT(L"map->buffer = %08lx, map->map_size = %08lx\n",
       map->buffer, map->map_size);
 
   EFI_PHYSICAL_ADDRESS iter;
@@ -122,7 +144,7 @@ EFI_STATUS SaveMemoryMap(struct MemoryMap* map, EFI_FILE_PROTOCOL* file) {
     DEBUG((DEBUG_INFO, buf));
 
     AsciiStrToUnicodeStrS(buf, unicode_buf, sizeof(unicode_buf) / sizeof(CHAR16));
-    //Print(L"%s", unicode_buf);
+    //LOG_PRINT(L"%s", unicode_buf);
     file->Write(file, &len, buf);
   }
 
@@ -206,7 +228,7 @@ VOID Halt(void) {
 
 VOID _IfErrorHalt(CHAR16* msg, EFI_STATUS status) {
   if (EFI_ERROR(status)) {
-    Print(L"MSG: %s, Status: %r\n", msg, status);
+    LOG_PRINT(L"MSG: %s, Status: %r\n", msg, status);
     Halt();
   }
 }
@@ -321,7 +343,7 @@ EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
     EFI_SYSTEM_TABLE* system_table) {
   check_cpu_mode();
-  Print(L"Hello, min-os World!\n");
+  LOG_PRINT(L"Hello, min-os World!\n");
   EFI_STATUS status;
   EFI_LOADED_IMAGE_PROTOCOL *LoadedImage = NULL;
   status = gBS->OpenProtocol(
@@ -333,7 +355,7 @@ EFI_STATUS EFIAPI UefiMain(
               EFI_OPEN_PROTOCOL_GET_PROTOCOL
               );
   _IfErrorHalt(L"OpenProtocol (LoadedImage) Failed", status);
-  Print(L"Base = %p\n", LoadedImage->ImageBase);
+  LOG_PRINT(L"Base = %p\n", LoadedImage->ImageBase);
 
   // #@@range_begin(main)
   struct MemoryMap memmap = {0, NULL, 0, 0, 0, 0};
@@ -349,8 +371,8 @@ EFI_STATUS EFIAPI UefiMain(
       root_dir, &memmap_file, L"\\memmap",
       EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
   if (EFI_ERROR(status)) {
-    Print(L"failed to open file '\\memmap': %r\n", status);
-    Print(L"Ignored.\n");
+    LOG_PRINT(L"failed to open file '\\memmap': %r\n", status);
+    LOG_PRINT(L"Ignored.\n");
   } else {
     status = SaveMemoryMap(&memmap, memmap_file);
     _IfErrorHalt(L"SaveMemoryMap Failed", status);
@@ -360,18 +382,26 @@ EFI_STATUS EFIAPI UefiMain(
   }
   // #@@range_end(main)
 
+  status = root_dir->Open(
+      root_dir, &g_log_file, L"\\bootlog.txt",
+      EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+  if (EFI_ERROR(status)) {
+    LOG_PRINT(L"log file open failed: %r (ignored)\n", status);
+    g_log_file = NULL;
+  }
+  LOG_PRINT(L"=== [BOOTLOADER] Logging START ===\n");
 
   // #@@range_begin(draw)
   EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
   status = OpenGOP(image_handle, &gop);
   _IfErrorHalt(L"OpenGOP Failed", status);
 
-  Print(L"Resolution: %ux%u, Pixel Format: %s, %u pixels/line\n",
+  LOG_PRINT(L"Resolution: %ux%u, Pixel Format: %s, %u pixels/line\n",
     gop->Mode->Info->HorizontalResolution,
     gop->Mode->Info->VerticalResolution,
     GetPixelFormatUnicode(gop->Mode->Info->PixelFormat),
     gop->Mode->Info->PixelsPerScanLine);
-  Print(L"Frame Buffer: 0x%0lx - 0x%0lx, Size: %lu bytes\n",
+  LOG_PRINT(L"Frame Buffer: 0x%0lx - 0x%0lx, Size: %lu bytes\n",
     gop->Mode->FrameBufferBase,
     gop->Mode->FrameBufferBase + gop->Mode->FrameBufferSize,
     gop->Mode->FrameBufferSize);
@@ -392,7 +422,7 @@ EFI_STATUS EFIAPI UefiMain(
   Elf64_Ehdr* kernel_ehdr = (Elf64_Ehdr*)kernel_buffer;
   UINT64 kernel_first_addr, kernel_last_addr;
   CalcLoadAddressRange(kernel_ehdr, &kernel_first_addr, &kernel_last_addr);
-  Print(L"Kernel: 0x%0lx - 0x%0lx\n", kernel_first_addr, kernel_last_addr);
+  LOG_PRINT(L"Kernel: 0x%0lx - 0x%0lx\n", kernel_first_addr, kernel_last_addr);
   
 
   UINTN num_pages = (kernel_last_addr - kernel_first_addr + 0xfff) / 0x1000;
@@ -414,7 +444,7 @@ EFI_STATUS EFIAPI UefiMain(
   _IfErrorHalt(L"failed to open Block I/O Protocol", status);
 
   EFI_BLOCK_IO_MEDIA* media = block_io->Media;
-  Print(L"LogicalPartition=%d, BlockSize=%u, IoAlign=%u, LastBlock=%u, MediaId=%u, MP=%u\n",
+  LOG_PRINT(L"LogicalPartition=%d, BlockSize=%u, IoAlign=%u, LastBlock=%u, MediaId=%u, MP=%u\n",
     media->LogicalPartition, media->BlockSize, media->IoAlign, media->LastBlock, media->MediaId, media->MediaPresent);
 
   UINTN volume_bytes = (UINTN)media->BlockSize * (media->LastBlock + 1);
@@ -435,18 +465,24 @@ EFI_STATUS EFIAPI UefiMain(
 
 
   // status = ReadBlocks(block_io, media->MediaId, volume_bytes, &volume_image);
-  // Print(L"[DBG] ReadBlocks status: %r\n", status);
-  // Print(L"volume_image=%p\n", volume_image);
+  // LOG_PRINT(L"[DBG] ReadBlocks status: %r\n", status);
+  // LOG_PRINT(L"volume_image=%p\n", volume_image);
   // _IfErrorHalt(L"failed to read blocks", status);
 
   // UINT8* p = (UINT8*)volume_image;
   // for (int i = 0; i < 32; ++i) {
-  //   Print(L"%02x ", p[i]);
+  //   LOG_PRINT(L"%02x ", p[i]);
   // }
-  // Print(L"\n");
+  // LOG_PRINT(L"\n");
 
   // Halt();
   // #@@range_end(read_volume)
+
+  if (g_log_file != NULL) {
+    LOG_PRINT(L"=== [BOOTLOADER] Logging END ===\n");
+    g_log_file->Close(g_log_file);
+    g_log_file = NULL;
+  }
 
   // #@@range_begin(stop_bootservice)
   status = gBS->ExitBootServices(image_handle, memmap.map_key);
@@ -503,7 +539,7 @@ EFI_STATUS EFIAPI UefiMain(
   entry_point(&config, &memmap, acpi_table, volume_image);
   // #@@range_end(run_kernel)
 
-  Print(L"All done\n");
+  LOG_PRINT(L"All done\n");
 
   while (1);
   return EFI_SUCCESS;

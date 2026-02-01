@@ -125,7 +125,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   printk("Welcome to MikanOS!\n");
   printk("Welcome to Min-OS!\n");
-  SetLogLevel(kWarn);
+  SetLogLevel(kDebug);
 
   uint8_t* p = reinterpret_cast<uint8_t*>(volume_image);
   printk("Volume Image: %p\n", volume_image);
@@ -151,6 +151,18 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   InitializeInterrupt();
 
   fat::Initialize(volume_image);
+  printk("ReservedSec=%u, FATSize=%u, NumFATs=%u\n",
+      fat::boot_volume_image->reserved_sector_count,
+      fat::boot_volume_image->fat_size_32,
+      fat::boot_volume_image->num_fats);
+
+  // FAT 시작 오프셋 = reserved_sector_count * 512
+  // 예: reserved=32 → FAT은 offset 16384 (16KB) 부터
+  uint32_t* fat = fat::GetFAT();
+  printk("FAT[0]=%08x FAT[1]=%08x FAT[2]=%08x FAT[3]=%08x\n",
+      fat[0], fat[1], fat[2], fat[3]);
+
+  InitializeLogFile();
   InitializeFont();
   InitializePCI();
   InitializeLayer();
