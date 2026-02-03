@@ -1,4 +1,6 @@
 ## TimeLine
+2025.02.14) mikan-os 책 읽기 시작
+
 2026.01.01) mikan-os 완료
 ![mikan-os_done](./20260101_mikanos_done.png)
 
