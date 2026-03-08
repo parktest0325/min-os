@@ -129,6 +129,7 @@ void DrawRectangle(PixelWriter& writer, const Vector2D<int>& pos,
 
 const PixelColor kDesktopBGColor{45, 118, 237};
 const PixelColor kDesktopFGColor{255, 255, 255};
+const int kTaskbarHeight = 50;
 
 void DrawDesktop(PixelWriter& writer);
 

@@ -262,7 +262,7 @@ void InitializeLayer() {
   DrawDesktop(*bgwindow->Writer());
 
   auto console_window = std::make_shared<Window>(
-    Console::kColumns * 8, Console::kRows * 16, screen_config.pixel_format);
+    console->Columns() * 8, console->Rows() * 16, screen_config.pixel_format);
   console->SetWindow(console_window);
 
   screen = new FrameBuffer;

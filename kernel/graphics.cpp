@@ -41,18 +41,18 @@ void DrawDesktop(PixelWriter& writer) {
 
   FillRectangle(writer,
       {0, 0},
-      {width, height - 50},
+      {width, height - kTaskbarHeight},
       kDesktopBGColor);
   FillRectangle(writer,
-      {0, height - 50},
-      {width, 50},
+      {0, height - kTaskbarHeight},
+      {width, kTaskbarHeight},
       {1, 8, 17});
   FillRectangle(writer,
-      {0, height - 50},
-      {width / 5, 50},
+      {0, height - kTaskbarHeight},
+      {width / 5, kTaskbarHeight},
       {80, 80, 80});
   FillRectangle(writer,
-      {10, height - 40},
+      {10, height - kTaskbarHeight + 10},
       {30, 30},
       {160, 160, 160});
 }
