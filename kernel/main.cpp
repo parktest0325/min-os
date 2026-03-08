@@ -195,6 +195,8 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   char str[128];
 
+  SetLogLevel(kWarn);
+
   // event loop
   while (true) {
     __asm__("cli");
