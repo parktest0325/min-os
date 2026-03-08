@@ -27,6 +27,9 @@ rm -f $DISK_IMG
 
 OS_TYPE=$(uname)
 
+# macOS에서 ._* 리소스 포크 파일 생성 방지
+export COPYFILE_DISABLE=1
+
 qemu-img create -f raw $DISK_IMG 200M
 mkfs.fat -n 'MIN OS' -s 2 -f 2 -R 32 -F 32 $DISK_IMG
 
@@ -60,6 +63,13 @@ then
     sudo cp $ANOTHER_FILE $MOUNT_POINT/
 fi
 sleep 0.5
+
+# macOS가 자동 생성하는 메타데이터 파일 제거
+if [ "$OS_TYPE" = "Darwin" ]; then
+    sudo find "$MOUNT_POINT" -name '._*' -delete 2>/dev/null
+    sudo rm -rf "$MOUNT_POINT/.fseventsd" 2>/dev/null
+    sudo rm -f "$MOUNT_POINT/.DS_Store" 2>/dev/null
+fi
 
 sudo umount $MOUNT_POINT
 

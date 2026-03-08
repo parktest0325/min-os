@@ -1,7 +1,12 @@
 # Usage: source buildenv.sh
 
-BASEDIR="$HOME/min-os/devenv/x86_64-elf"
-EDK2DIR="$HOME/min-os/devenv/edk2"
+# dirname $0 은 run.sh 에서 source 할 때 동작, 직접 source 시 pwd 로 fallback
+_DEVENV_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+if [ ! -d "$_DEVENV_DIR/x86_64-elf" ]; then
+    _DEVENV_DIR="$(pwd)"
+fi
+BASEDIR="$_DEVENV_DIR/x86_64-elf"
+EDK2DIR="$_DEVENV_DIR/edk2"
 
 if [ ! -d $BASEDIR ]
 then
