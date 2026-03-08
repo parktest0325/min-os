@@ -30,7 +30,7 @@ OS_TYPE=$(uname)
 # macOS에서 ._* 리소스 포크 파일 생성 방지
 export COPYFILE_DISABLE=1
 
-qemu-img create -f raw $DISK_IMG 200M
+qemu-img create -f raw $DISK_IMG 128M
 mkfs.fat -n 'MIN OS' -s 2 -f 2 -R 32 -F 32 $DISK_IMG
 
 $DEVENV_DIR/mount_image.sh $DISK_IMG $MOUNT_POINT

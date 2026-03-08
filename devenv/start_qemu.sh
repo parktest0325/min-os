@@ -27,11 +27,18 @@ QEMU_ARGS="
 "
 
 if [ "$DEBUG_MODE" = "debug" ]; then
+    # GDB: macOS에서는 x86_64-elf-gdb 사용
+    if [ "$(uname)" = "Darwin" ]; then
+        GDB=${GDB:-x86_64-elf-gdb}
+    else
+        GDB=${GDB:-gdb}
+    fi
+
     # 백그라운드로 QEMU 실행 + GDB 포트 열기
     qemu-system-x86_64 $QEMU_ARGS -d int,guest_errors -no-reboot -gdb tcp::1234 -S > /dev/null 2>&1 &
     QEMU_PID=$!
 
-    gdb ./build/kernel.elf \
+    $GDB ./build/kernel.elf \
         -ex "target remote :1234" \
         -ex "break KernelMain" \
         -ex "continue"

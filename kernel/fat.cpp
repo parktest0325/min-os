@@ -242,7 +242,8 @@ WithError<DirectoryEntry*> CreateFile(const char* path) {
   if (dir == nullptr) {
     return { nullptr, MAKE_ERROR(Error::kNoEnoughMemory) };
   }
-  // 엔트리에 Short Name만 지정
+  // 재활용 엔트리의 stale 데이터 제거 (first_cluster 등)
+  memset(dir, 0, sizeof(DirectoryEntry));
   fat::SetFileName(*dir, filename);
   dir->file_size = 0;
   return { dir, MAKE_ERROR(Error::kSuccess) };
@@ -335,7 +336,7 @@ size_t FileDescriptor::Write(const void* buf, size_t len) {
 
     // 클러스터에 쓸수있는만큼 쓰기
     uint8_t* sec = GetSectorByCluster<uint8_t>(wr_cluster_);
-    size_t n = std::min(len, bytes_per_cluster - wr_cluster_off_);
+    size_t n = std::min(len - total, bytes_per_cluster - wr_cluster_off_);
     memcpy(&sec[wr_cluster_off_], &buf8[total], n);
     wr_cluster_off_ += n;
     total += n;
