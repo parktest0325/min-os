@@ -219,28 +219,29 @@ namespace pci {
     WriteAddress(MakeAddress(dev.bus, dev.device, dev.function, reg_addr));
     WriteData(value);
   }
-
-  WithError<uint64_t> ReadBar(Device& device, unsigned int bar_index) {
+  
+  WithError<uint64_t> ReadBar(const Device& device, unsigned int bar_index) {
     if (bar_index >= 6) {
       return {0, MAKE_ERROR(Error::kIndexOutOfRange)};
     }
-
     const auto addr = CalcBarAddress(bar_index);
     const auto bar = ReadConfReg(device, addr);
 
-    if ((bar & 4u) == 0) {
-      return {bar, MAKE_ERROR(Error::kSuccess)};
-    }
+    // I/O BAR
+    if ((bar & 1u) == 1u)
+      return {bar & ~0x3u, MAKE_ERROR(Error::kSuccess)};
 
-    if (bar_index >= 5) {
+    // Memory BAR 32-bit
+    if ((bar & 0x6u) != 0x4u)
+      return {bar & ~0xFu, MAKE_ERROR(Error::kSuccess)};
+
+    // Memory BAR 64-bit
+    if (bar_index >= 5)
       return {0, MAKE_ERROR(Error::kIndexOutOfRange)};
-    }
-
+    // 64bit 는 BAR 두개를 합침
     const auto bar_upper = ReadConfReg(device, addr + 4);
-    return {
-      bar | (static_cast<uint64_t>(bar_upper) << 32),
-      MAKE_ERROR(Error::kSuccess)
-    };
+    uint64_t bar64 = (static_cast<uint64_t>(bar_upper) << 32) | (bar & ~0xFu);
+    return {bar64, MAKE_ERROR(Error::kSuccess)};
   }
 
   // MSI Interrupt

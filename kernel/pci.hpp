@@ -41,7 +41,7 @@ namespace pci {
 
   bool IsSingleFunctionDevice(uint8_t header_type);
 
-  inline std::array<Device, 32> devices;
+  inline std::array<Device, 256> devices;
   inline int num_device;
 
   Error ScanAllBus();
@@ -50,7 +50,7 @@ namespace pci {
     return 0x10 + 4 * bar_index;
   }
 
-  WithError<uint64_t> ReadBar(Device& device, unsigned int bar_index);
+  WithError<uint64_t> ReadBar(const Device& device, unsigned int bar_index);
 
   /** @brief PCI ケーパビリティレジスタの共通ヘッダ */
   union CapabilityHeader {
