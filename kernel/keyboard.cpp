@@ -2,7 +2,6 @@
 
 #include "task.hpp"
 #include <memory>
-#include "usb/classdriver/keyboard.hpp"
 
 namespace {
 
@@ -51,18 +50,18 @@ const char keycode_map_shifted[256] = {
 }
 
 void InitializeKeyboard() {
-  usb::HIDKeyboardDriver::default_observer =
-    [](uint8_t modifier, uint8_t keycode, bool press) {
-      const bool shift = (modifier & (kLShiftBitMask | kRShiftBitMask)) != 0;
-      char ascii = keycode_map[keycode];
-      if (shift) {
-        ascii = keycode_map_shifted[keycode];
-      }
-      Message msg{Message::kKeyPush};
-      msg.arg.keyboard.modifier = modifier;
-      msg.arg.keyboard.keycode = keycode;
-      msg.arg.keyboard.ascii = ascii;
-      msg.arg.keyboard.press = press;
-      task_manager->SendMessage(1, msg);
-    };
+  // usb::HIDKeyboardDriver::default_observer =
+  //   [](uint8_t modifier, uint8_t keycode, bool press) {
+  //     const bool shift = (modifier & (kLShiftBitMask | kRShiftBitMask)) != 0;
+  //     char ascii = keycode_map[keycode];
+  //     if (shift) {
+  //       ascii = keycode_map_shifted[keycode];
+  //     }
+  //     Message msg{Message::kKeyPush};
+  //     msg.arg.keyboard.modifier = modifier;
+  //     msg.arg.keyboard.keycode = keycode;
+  //     msg.arg.keyboard.ascii = ascii;
+  //     msg.arg.keyboard.press = press;
+  //     task_manager->SendMessage(1, msg);
+  //   };
 }

@@ -32,7 +32,7 @@
 
 #include "asmfunc.h"
 
-#include "usb/xhci/xhci.hpp"
+#include "usb/usb.hpp"
 
 int printk(const char* format, ...) {
   va_list ap;
@@ -187,9 +187,10 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   // TaskID로 터미널을 찾아올 수 있는 매핑테이블
   terminals = new std::map<uint64_t, Terminal*>;
 
-  usb::xhci::Initialize();
-  InitializeKeyboard();
-  InitializeMouse();
+  usb::Initialize();
+  // usb::xhci::Initialize();
+  // InitializeKeyboard();
+  // InitializeMouse();
 
   app_loads = new std::map<fat::DirectoryEntry*, AppLoadInfo>;
 
@@ -219,7 +220,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
     switch (msg->type) {
     case Message::kInterruptXHCI:
-      usb::xhci::ProcessEvents();
+      // usb::xhci::ProcessEvents();
       break;
     case Message::kTimerTimeout:
       if (msg->arg.timer.value == kTextboxCursorTimer) {

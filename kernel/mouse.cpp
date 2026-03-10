@@ -3,8 +3,6 @@
 #include "layer.hpp"
 #include "task.hpp"
 
-#include "usb/classdriver/mouse.hpp"
-
 #include <limits>
 #include <memory>
 
@@ -187,10 +185,10 @@ void InitializeMouse() {
 
   // 메서드이기 때문에 함수포인터가 아닌 람다로 호출한다.
   // 함수포인터가 불가능한건 아니지만, usb 드라이버의 타입이 드라이버를 사용하는 클래스에 의존되는 구조가된다.
-  usb::HIDMouseDriver::default_observer =
-    [mouse](uint8_t buttons, int8_t displacement_x, int8_t displacement_y) {
-      mouse->OnInterrupt(buttons, displacement_x, displacement_y);
-    };
+  // usb::HIDMouseDriver::default_observer =
+  //   [mouse](uint8_t buttons, int8_t displacement_x, int8_t displacement_y) {
+  //     mouse->OnInterrupt(buttons, displacement_x, displacement_y);
+  //   };
   
   active_layer->SetMouseLayer(mouse_layer_id);
 }
