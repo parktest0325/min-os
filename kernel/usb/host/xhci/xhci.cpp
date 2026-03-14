@@ -89,7 +89,8 @@ namespace usb::xhci {
     Log(kInfo, "xHCI BAR0: 0x%016lx\n", bar);
     cap_ = reinterpret_cast<volatile CapabilityRegisters*>(bar);
 
-    return ReadCapabilityRegisters();
+    if (auto err = ReadCapabilityRegisters()) return err;
+    return ResetController();
   }
 
   Error XhciController::ReadCapabilityRegisters() {
@@ -136,6 +137,28 @@ namespace usb::xhci {
     uint32_t sts = op_->usb_sts;
     Log(kInfo, "  USBSTS=0x%08x (HCH=%d, CNR=%d)\n",
         sts, !!(sts & USBSTS_HCH), !!(sts & USBSTS_CNR));
+
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  Error XhciController::ResetController() {
+    // 1. Halt: USBCMD.Run/Stop = 0
+    op_->usb_cmd &= ~USBCMD_RUN_STOP;
+    // USBSTS.HCH == 0 이 될때(정지)까지 대기한다. 
+    while (!(op_->usb_sts & USBSTS_HCH)) {}
+    Log(kInfo, "xHCI: controller halted\n");
+
+    // 2. Reset: USBCMD.HCRST = 1
+    op_->usb_cmd |= USBCMD_HCRST;
+    // HCRST == 0 (리셋 완료)
+    while (op_->usb_cmd & USBCMD_HCRST) {}
+    // CNR == 0 (컨트롤러 준비 완료)
+    while (op_->usb_sts & USBSTS_CNR) {}
+    Log(kInfo, "xHCI: controller reset done\n");
+
+    // 3. CONFIG.MaxSlotsEn 설정
+    op_->config = max_slots_;
+    Log(kInfo, "xHCI: MaxSlotsEn=%u\n", max_slots_);
 
     return MAKE_ERROR(Error::kSuccess);
   }
