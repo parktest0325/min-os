@@ -64,6 +64,29 @@ namespace usb::xhci {
   constexpr uint32_t USBSTS_HSE = 1u << 2;   // Host System Error
   constexpr uint32_t USBSTS_CNR = 1u << 11;  // Controller Not Ready
 
+  // ---- Runtime Registers (BAR0 + RTSOFF) ----
+  //   0x00: MFINDEX
+  //   0x20 + interrupter * 0x20: Interrupter Register Set
+
+  struct InterrupterRegisterSet {
+    uint32_t iman;              // 0x00: Interrupter Management
+    uint32_t imod;              // 0x04: Interrupter Moderation
+    uint32_t erstsz;            // 0x08: Event Ring Segment Table Size
+    uint32_t reserved;          // 0x0C
+    uint32_t erstba_lo;         // 0x10: ERST Base Address (low)
+    uint32_t erstba_hi;         // 0x14: ERST Base Address (high)
+    uint32_t erdp_lo;           // 0x18: Event Ring Dequeue Pointer (low)
+    uint32_t erdp_hi;           // 0x1C: Event Ring Dequeue Pointer (high)
+  };
+
+  // IMAN bits
+  constexpr uint32_t IMAN_IP = 1u << 0;  // Interrupt Pending
+  constexpr uint32_t IMAN_IE = 1u << 1;  // Interrupt Enable
+
+  // ---- Doorbell Register (BAR0 + DBOFF + slot*4) ----
+  //   slot 0 = Host Controller (Command Ring)
+  //   slot N = Device Slot N
+
   // ---- Port Register Set (BAR0 + CAPLENGTH + 0x400 + port*0x10) ----
 
   struct PortRegisterSet {

@@ -1,7 +1,22 @@
 #include "usb/host/xhci/xhci.hpp"
 #include "logger.hpp"
+#include <cstdlib>
+#include <cstring>
 
 namespace usb::xhci {
+
+  void* AllocAligned(size_t size, size_t alignment) {
+    void* ptr = malloc(size + alignment);
+    if (!ptr) return nullptr;
+    uintptr_t addr = (reinterpret_cast<uintptr_t>(ptr) + alignment - 1) & ~(alignment - 1);
+    return reinterpret_cast<void*>(addr);
+  }
+
+  void* AllocAlignedZeroed(size_t size, size_t alignment) {
+    void* ptr = AllocAligned(size, alignment);
+    if (ptr) memset(ptr, 0, size);
+    return ptr;
+  }
 
   namespace intel {
     // Intel xHCI PCI config registers
@@ -58,8 +73,11 @@ namespace usb::xhci {
   XhciController::XhciController(const pci::Device& dev)
       : dev_{dev},
         cap_{nullptr}, op_{nullptr},
+        primary_interrupter_{nullptr}, doorbell_base_{nullptr},
         max_ports_{0}, max_slots_{0},
-        db_off_{0}, rts_off_{0} {}
+        cmd_ring_{nullptr}, cmd_ring_size_{0}, cmd_ring_enqueue_{0}, cmd_ring_cycle_{true},
+        event_ring_{nullptr}, event_ring_size_{0}, event_ring_dequeue_{0}, event_ring_cycle_{true},
+        erst_{nullptr}, dcbaa_{nullptr} {}
 
   Error XhciController::Initialize() {
     intel::RouteToXhci(dev_);
@@ -100,8 +118,12 @@ namespace usb::xhci {
     bool ac64 = HCCPARAMS1_AC64(hcc1);
     bool csz  = HCCPARAMS1_CSZ(hcc1);
 
-    db_off_  = cap_->db_off & ~0x3u;
-    rts_off_ = cap_->rts_off & ~0x1Fu;
+    uint32_t db_off  = cap_->db_off & ~0x3u;
+    uint32_t rts_off = cap_->rts_off & ~0x1Fu;
+
+    doorbell_base_ = reinterpret_cast<volatile uint32_t*>(bar + db_off);
+    // Interrupter 0 = Runtime base + 0x20
+    primary_interrupter_ = reinterpret_cast<volatile InterrupterRegisterSet*>(bar + rts_off + 0x20);
 
     Log(kInfo, "xHCI v%x.%x, CAPLENGTH=%u\n",
         version >> 8, version & 0xFF, cap_length);
@@ -109,7 +131,7 @@ namespace usb::xhci {
         max_slots_, max_intrs, max_ports_);
     Log(kInfo, "  AC64=%d, ContextSize=%dB, ErstMax=%u, Scratchpad=%u\n",
         ac64, csz ? 64 : 32, 1u << erst_max, max_scratchpad);
-    Log(kInfo, "  DBOFF=0x%x, RTSOFF=0x%x\n", db_off_, rts_off_);
+    Log(kInfo, "  DBOFF=0x%x, RTSOFF=0x%x\n", db_off, rts_off);
 
     uint32_t sts = op_->usb_sts;
     Log(kInfo, "  USBSTS=0x%08x (HCH=%d, CNR=%d)\n",
