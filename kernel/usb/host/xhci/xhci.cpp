@@ -1,4 +1,5 @@
 #include "usb/host/xhci/xhci.hpp"
+#include "usb/host/xhci/xhci_context.hpp"
 #include "logger.hpp"
 #include <cstdlib>
 #include <cstring>
@@ -77,7 +78,7 @@ namespace usb::xhci {
         max_ports_{0}, max_slots_{0},
         cmd_ring_{nullptr}, cmd_ring_size_{0}, cmd_ring_enqueue_{0}, cmd_ring_cycle_{true},
         event_ring_{nullptr}, event_ring_size_{0}, event_ring_dequeue_{0}, event_ring_cycle_{true},
-        erst_{nullptr}, dcbaa_{nullptr} {}
+        erst_{nullptr}, dcbaa_{nullptr}, slot_data_{} {}
 
   Error XhciController::Initialize() {
     intel::RouteToXhci(dev_);
@@ -91,7 +92,8 @@ namespace usb::xhci {
 
     if (auto err = ReadCapabilityRegisters()) return err;
     if (auto err = ResetController()) return err;
-    return StartController();
+    if (auto err = StartController()) return err;
+    return ScanPorts();
   }
 
   Error XhciController::ReadCapabilityRegisters() {
@@ -243,6 +245,246 @@ namespace usb::xhci {
     pci::WriteConfReg(dev_, 0x04, cmd);
     Log(kInfo, "PCI Command: 0x%04x (MemSpace=%d, BusMaster=%d)\n",
         cmd & 0xffff, (cmd >> 1) & 1, (cmd >> 2) & 1);
+  }
+
+  // ---- Ring 헬퍼 ----
+
+  volatile PortRegisterSet* XhciController::PortAt(uint8_t port_num) {
+    // port_num은 1-based
+    uintptr_t base = reinterpret_cast<uintptr_t>(op_) + 0x400 + (port_num - 1) * 0x10;
+    return reinterpret_cast<volatile PortRegisterSet*>(base);
+  }
+
+  void XhciController::PushCommand(uint32_t param0, uint32_t param1, uint32_t status, uint32_t control) {
+    TRB& trb = cmd_ring_[cmd_ring_enqueue_];
+    trb.parameter[0] = param0;
+    trb.parameter[1] = param1;
+    trb.status = status;
+    trb.control = control | (cmd_ring_cycle_ ? TRB_CYCLE : 0);
+
+    ++cmd_ring_enqueue_;
+    if (cmd_ring_enqueue_ == cmd_ring_size_ - 1) {
+      // Link TRB에 도달 — cycle bit 세팅 후 wrap
+      TRB& link = cmd_ring_[cmd_ring_enqueue_];
+      link.control = (link.control & ~TRB_CYCLE) | (cmd_ring_cycle_ ? TRB_CYCLE : 0);
+      cmd_ring_cycle_ = !cmd_ring_cycle_;
+      cmd_ring_enqueue_ = 0;
+    }
+
+    // Host Controller Doorbell (slot 0, target 0)
+    doorbell_base_[0] = 0;
+  }
+
+  constexpr uint32_t kEp0RingSize = 16;
+
+  void XhciController::PushTransfer(uint8_t slot_id, uint32_t param0, uint32_t param1, uint32_t status, uint32_t control) {
+    SlotData& sd = slot_data_[slot_id];
+    TRB& trb = sd.ep0_ring[sd.ep0_enqueue];
+    trb.parameter[0] = param0;
+    trb.parameter[1] = param1;
+    trb.status = status;
+    trb.control = control | (sd.ep0_cycle ? TRB_CYCLE : 0);
+
+    ++sd.ep0_enqueue;
+    if (sd.ep0_enqueue == kEp0RingSize - 1) {
+      TRB& link = sd.ep0_ring[sd.ep0_enqueue];
+      link.control = (link.control & ~TRB_CYCLE) | (sd.ep0_cycle ? TRB_CYCLE : 0);
+      sd.ep0_cycle = !sd.ep0_cycle;
+      sd.ep0_enqueue = 0;
+    }
+  }
+
+  TRB* XhciController::WaitEvent() {
+    while (true) {
+      TRB* event = &event_ring_[event_ring_dequeue_];
+      // Cycle bit가 기대값과 일치할 때까지 대기
+      while ((event->control & TRB_CYCLE) != (event_ring_cycle_ ? 1u : 0u)) {}
+
+      ++event_ring_dequeue_;
+      if (event_ring_dequeue_ == event_ring_size_) {
+        event_ring_dequeue_ = 0;
+        event_ring_cycle_ = !event_ring_cycle_;
+      }
+
+      // ERDP 업데이트
+      uintptr_t erdp = reinterpret_cast<uintptr_t>(&event_ring_[event_ring_dequeue_]);
+      primary_interrupter_->erdp_lo = static_cast<uint32_t>(erdp) | (1u << 3);
+      primary_interrupter_->erdp_hi = static_cast<uint32_t>(erdp >> 32);
+
+      // Port Status Change Event는 스킵 (포트 스캔 중에 자연 발생)
+      uint8_t type = TRB_Type(event->control);
+      if (type == TRB_TYPE_PORT_STATUS_CHG) {
+        uint8_t port_id = (event->parameter[0] >> 24) & 0xFF;
+        Log(kDebug, "xHCI: Port Status Change Event (port=%u), skipping\n", port_id);
+        continue;
+      }
+
+      return event;
+    }
+  }
+
+  // ---- M3: 포트 감지 + Enumeration ----
+
+  Error XhciController::ScanPorts() {
+    for (uint8_t port = 1; port <= max_ports_; ++port) {
+      volatile PortRegisterSet* pr = PortAt(port);
+      uint32_t portsc = pr->portsc;
+
+      if (!(portsc & PORTSC_CCS)) continue;
+
+      Log(kInfo, "xHCI: Port %u connected (PORTSC=0x%08x, Speed=%u)\n",
+          port, portsc, PORTSC_Speed(portsc));
+
+      // Port Reset
+      pr->portsc = (portsc & ~PORTSC_W1C_BITS) | PORTSC_PR;
+      while (!(pr->portsc & PORTSC_PRC)) {}
+      // PRC 클리어
+      pr->portsc = (pr->portsc & ~PORTSC_W1C_BITS) | PORTSC_PRC;
+
+      uint8_t speed = PORTSC_Speed(pr->portsc);
+      Log(kInfo, "xHCI: Port %u reset done (Speed=%u, Enabled=%d)\n",
+          port, speed, !!(pr->portsc & PORTSC_PED));
+
+      if (!(pr->portsc & PORTSC_PED)) {
+        Log(kWarn, "xHCI: Port %u not enabled after reset\n", port);
+        continue;
+      }
+
+      // Enable Slot Command
+      PushCommand(0, 0, 0, TRB_SetType(TRB_TYPE_ENABLE_SLOT_CMD));
+      TRB* event = WaitEvent();
+
+      uint8_t cc = TRB_CompletionCode(event->status);
+      uint8_t slot_id = TRB_SlotId(event->control);
+
+      if (cc != TRB_COMPLETION_SUCCESS) {
+        Log(kError, "xHCI: Enable Slot failed (code=%u)\n", cc);
+        continue;
+      }
+      Log(kInfo, "xHCI: Slot %u enabled\n", slot_id);
+
+      // Address Device
+      if (auto err = AddressDevice(slot_id, port, speed)) {
+        Log(kError, "xHCI: Address Device failed for slot %u: %s\n", slot_id, err.Name());
+        continue;
+      }
+
+      // GET_DESCRIPTOR
+      if (auto err = GetDescriptor(slot_id)) {
+        Log(kError, "xHCI: GET_DESCRIPTOR failed for slot %u: %s\n", slot_id, err.Name());
+        continue;
+      }
+    }
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  Error XhciController::AddressDevice(uint8_t slot_id, uint8_t port, uint8_t speed) {
+    // Output Device Context 할당
+    auto* dev_ctx = reinterpret_cast<DeviceContext*>(
+        AllocAlignedZeroed(sizeof(DeviceContext), 64));
+    if (!dev_ctx) return MAKE_ERROR(Error::kNoEnoughMemory);
+
+    // DCBAA에 등록
+    dcbaa_[slot_id] = reinterpret_cast<uintptr_t>(dev_ctx);
+
+    // EP0 Transfer Ring 할당
+    auto* ep0_ring = reinterpret_cast<TRB*>(
+        AllocAlignedZeroed(kEp0RingSize * sizeof(TRB), 64));
+    if (!ep0_ring) return MAKE_ERROR(Error::kNoEnoughMemory);
+
+    // EP0 Ring의 마지막에 Link TRB
+    uintptr_t ep0_ring_phys = reinterpret_cast<uintptr_t>(ep0_ring);
+    TRB& link = ep0_ring[kEp0RingSize - 1];
+    link.parameter[0] = static_cast<uint32_t>(ep0_ring_phys);
+    link.parameter[1] = static_cast<uint32_t>(ep0_ring_phys >> 32);
+    link.control = TRB_SetType(TRB_TYPE_LINK) | LINK_TRB_TOGGLE_CYCLE;
+
+    slot_data_[slot_id] = {ep0_ring, 0, true};
+
+    // Input Context 구성
+    auto* input = reinterpret_cast<InputContext*>(
+        AllocAlignedZeroed(sizeof(InputContext), 64));
+    if (!input) return MAKE_ERROR(Error::kNoEnoughMemory);
+
+    // Add Context Flags: Slot (bit 0) + EP0 (bit 1)
+    input->control.add_flags = (1u << 0) | (1u << 1);
+
+    // Slot Context
+    SC_SetSpeed(input->slot, speed);
+    SC_SetContextEntries(input->slot, 1);  // EP0만
+    SC_SetRootHubPortNumber(input->slot, port);
+
+    // EP0 Context (DCI 1 = ep[0])
+    uint16_t max_packet = DefaultMaxPacketSize(speed);
+    EP_SetEPType(input->ep[0], EP_TYPE_CONTROL);
+    EP_SetMaxPacketSize(input->ep[0], max_packet);
+    EP_SetCErr(input->ep[0], 3);
+    EP_SetTRDequeuePointer(input->ep[0], ep0_ring_phys, true);
+    EP_SetAvgTRBLength(input->ep[0], 8);
+
+    // Address Device Command
+    uintptr_t input_phys = reinterpret_cast<uintptr_t>(input);
+    PushCommand(
+        static_cast<uint32_t>(input_phys),
+        static_cast<uint32_t>(input_phys >> 32),
+        0,
+        TRB_SetType(TRB_TYPE_ADDRESS_DEV_CMD) | (static_cast<uint32_t>(slot_id) << 24));
+
+    TRB* event = WaitEvent();
+    uint8_t cc = TRB_CompletionCode(event->status);
+    if (cc != TRB_COMPLETION_SUCCESS) {
+      Log(kError, "xHCI: Address Device completion code=%u\n", cc);
+      return MAKE_ERROR(Error::kNotImplemented);
+    }
+
+    Log(kInfo, "xHCI: Slot %u addressed (Speed=%u, MaxPacket=%u)\n",
+        slot_id, speed, max_packet);
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  Error XhciController::GetDescriptor(uint8_t slot_id) {
+    // 데이터 버퍼 할당
+    auto* buf = reinterpret_cast<DeviceDescriptor*>(
+        AllocAlignedZeroed(sizeof(DeviceDescriptor), 64));
+    if (!buf) return MAKE_ERROR(Error::kNoEnoughMemory);
+
+    uintptr_t buf_phys = reinterpret_cast<uintptr_t>(buf);
+
+    // Setup Stage TRB: GET_DESCRIPTOR(Device), wLength=18
+    uint32_t setup_lo = 0x80 | (0x06 << 8) | (0x0100 << 16);  // bmReqType=0x80, bReq=6, wValue=0x0100
+    uint32_t setup_hi = 0 | (18 << 16);                         // wIndex=0, wLength=18
+    PushTransfer(slot_id, setup_lo, setup_hi,
+        8,  // TRB Transfer Length = 8 (Setup 패킷 크기)
+        TRB_SetType(TRB_TYPE_SETUP_STAGE) | TRB_IDT | SETUP_TRT_IN);
+
+    // Data Stage TRB: 버퍼로 18바이트 수신
+    PushTransfer(slot_id,
+        static_cast<uint32_t>(buf_phys),
+        static_cast<uint32_t>(buf_phys >> 32),
+        18,  // Transfer Length
+        TRB_SetType(TRB_TYPE_DATA_STAGE) | TRB_DIR_IN);
+
+    // Status Stage TRB: zero-length OUT (Data가 IN이었으므로)
+    PushTransfer(slot_id, 0, 0, 0,
+        TRB_SetType(TRB_TYPE_STATUS_STAGE) | TRB_IOC | TRB_DIR_OUT);
+
+    // Doorbell: slot_id, target = 1 (EP0 = DCI 1)
+    doorbell_base_[slot_id] = 1;
+
+    // Transfer Event 대기
+    TRB* event = WaitEvent();
+    uint8_t cc = TRB_CompletionCode(event->status);
+    if (cc != TRB_COMPLETION_SUCCESS && cc != TRB_COMPLETION_SHORT_PKT) {
+      Log(kError, "xHCI: GET_DESCRIPTOR completion code=%u\n", cc);
+      return MAKE_ERROR(Error::kNotImplemented);
+    }
+
+    Log(kInfo, "USB Device: VendorID=%04x, ProductID=%04x, Class=%02x, bcdUSB=%04x\n",
+        buf->idVendor, buf->idProduct, buf->bDeviceClass, buf->bcdUSB);
+    Log(kInfo, "  MaxPacketSize0=%u, NumConfigurations=%u\n",
+        buf->bMaxPacketSize0, buf->bNumConfigurations);
+
+    return MAKE_ERROR(Error::kSuccess);
   }
 
 }  // namespace usb::xhci

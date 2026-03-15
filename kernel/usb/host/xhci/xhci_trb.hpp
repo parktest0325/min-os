@@ -31,8 +31,25 @@ namespace usb::xhci {
   constexpr uint8_t TRB_TYPE_CMD_COMPLETION   = 33;
   constexpr uint8_t TRB_TYPE_PORT_STATUS_CHG  = 34;
 
+  constexpr uint32_t TRB_IDT = 1u << 6;  // Immediate Data
+
+  // Setup Stage TRB: Transfer Type (TRT) [17:16]
+  constexpr uint32_t SETUP_TRT_NO_DATA = 0u << 16;
+  constexpr uint32_t SETUP_TRT_OUT     = 2u << 16;
+  constexpr uint32_t SETUP_TRT_IN      = 3u << 16;
+
+  // Data/Status Stage TRB: Direction [16]
+  constexpr uint32_t TRB_DIR_OUT = 0u << 16;
+  constexpr uint32_t TRB_DIR_IN  = 1u << 16;
+
   // Link TRB: control bit 1 = Toggle Cycle
   constexpr uint32_t LINK_TRB_TOGGLE_CYCLE = 1u << 1;
+
+  // Completion Code
+  constexpr uint8_t TRB_COMPLETION_SUCCESS    = 1;
+  constexpr uint8_t TRB_COMPLETION_SHORT_PKT  = 13;
+  inline uint8_t TRB_CompletionCode(uint32_t status) { return (status >> 24) & 0xFF; }
+  inline uint8_t TRB_SlotId(uint32_t control) { return (control >> 24) & 0xFF; }
 
   // Event Ring Segment Table Entry
   struct ERSTEntry {

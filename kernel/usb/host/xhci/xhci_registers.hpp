@@ -105,4 +105,8 @@ namespace usb::xhci {
   constexpr uint32_t PORTSC_CSC  = 1u << 17;  // Connect Status Change
   constexpr uint32_t PORTSC_PRC  = 1u << 21;  // Port Reset Change
 
+  // PORTSC의 W1C (Write-1-to-Clear) 비트들 — 쓰기 시 실수로 클리어하지 않기 위해 마스킹
+  constexpr uint32_t PORTSC_W1C_BITS =
+      PORTSC_CSC | (1u << 18) | (1u << 19) | (1u << 20) | PORTSC_PRC | (1u << 22) | (1u << 23);
+
 }  // namespace usb::xhci

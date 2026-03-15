@@ -43,9 +43,29 @@ namespace usb::xhci {
     // DCBAA
     uint64_t* dcbaa_;
 
+    // 슬롯별 EP0 Transfer Ring 상태
+    struct SlotData {
+      TRB* ep0_ring;
+      uint32_t ep0_enqueue;
+      bool ep0_cycle;
+    };
+    static constexpr int kMaxSlots = 256;
+    SlotData slot_data_[kMaxSlots];
+
     void ConfigurePCI();
     Error ReadCapabilityRegisters();
     Error ResetController();
     Error StartController();
+
+    // Ring 조작
+    volatile PortRegisterSet* PortAt(uint8_t port_num);
+    void PushCommand(uint32_t param0, uint32_t param1, uint32_t status, uint32_t control);
+    void PushTransfer(uint8_t slot_id, uint32_t param0, uint32_t param1, uint32_t status, uint32_t control);
+    TRB* WaitEvent();
+
+    // M3: 포트 감지 + Enumeration
+    Error ScanPorts();
+    Error AddressDevice(uint8_t slot_id, uint8_t port, uint8_t speed);
+    Error GetDescriptor(uint8_t slot_id);
   };
 }
