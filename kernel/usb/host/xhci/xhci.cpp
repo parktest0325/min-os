@@ -90,7 +90,8 @@ namespace usb::xhci {
     cap_ = reinterpret_cast<volatile CapabilityRegisters*>(bar);
 
     if (auto err = ReadCapabilityRegisters()) return err;
-    return ResetController();
+    if (auto err = ResetController()) return err;
+    return StartController();
   }
 
   Error XhciController::ReadCapabilityRegisters() {
@@ -159,6 +160,79 @@ namespace usb::xhci {
     // 3. CONFIG.MaxSlotsEn 설정
     op_->config = max_slots_;
     Log(kInfo, "xHCI: MaxSlotsEn=%u\n", max_slots_);
+
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  constexpr uint32_t kCmdRingSize   = 256;
+  constexpr uint32_t kEventRingSize = 256;
+
+  Error XhciController::StartController() {
+    // 1. DCBAA 할당: (MaxSlots + 1) * 8 바이트, 64바이트 정렬
+    size_t dcbaa_bytes = (max_slots_ + 1) * sizeof(uint64_t);
+    dcbaa_ = reinterpret_cast<uint64_t*>(AllocAlignedZeroed(dcbaa_bytes, 64));
+    if (!dcbaa_) return MAKE_ERROR(Error::kNoEnoughMemory);
+
+    uintptr_t dcbaa_phys = reinterpret_cast<uintptr_t>(dcbaa_);
+    op_->dcbaap_lo = static_cast<uint32_t>(dcbaa_phys);
+    op_->dcbaap_hi = static_cast<uint32_t>(dcbaa_phys >> 32);
+    Log(kInfo, "xHCI: DCBAA @ 0x%016lx\n", dcbaa_phys);
+
+    // 2. Command Ring 할당: kCmdRingSize TRB, 마지막은 Link TRB
+    cmd_ring_size_ = kCmdRingSize;
+    cmd_ring_ = reinterpret_cast<TRB*>(AllocAlignedZeroed(cmd_ring_size_ * sizeof(TRB), 64));
+    if (!cmd_ring_) return MAKE_ERROR(Error::kNoEnoughMemory);
+
+    TRB& link = cmd_ring_[cmd_ring_size_ - 1];
+    uintptr_t cmd_ring_phys = reinterpret_cast<uintptr_t>(cmd_ring_);
+    link.parameter[0] = static_cast<uint32_t>(cmd_ring_phys);
+    link.parameter[1] = static_cast<uint32_t>(cmd_ring_phys >> 32);
+    link.control = TRB_SetType(TRB_TYPE_LINK) | LINK_TRB_TOGGLE_CYCLE;
+
+    cmd_ring_enqueue_ = 0;
+    cmd_ring_cycle_ = true;
+
+    uintptr_t crcr_val = cmd_ring_phys | 1;  // Cycle State = 1
+    op_->cr_cr_lo = static_cast<uint32_t>(crcr_val);
+    op_->cr_cr_hi = static_cast<uint32_t>(crcr_val >> 32);
+    Log(kInfo, "xHCI: Command Ring @ 0x%016lx (%u TRBs)\n", cmd_ring_phys, cmd_ring_size_);
+
+    // 3. Event Ring 할당
+    event_ring_size_ = kEventRingSize;
+    event_ring_ = reinterpret_cast<TRB*>(AllocAlignedZeroed(event_ring_size_ * sizeof(TRB), 64));
+    if (!event_ring_) return MAKE_ERROR(Error::kNoEnoughMemory);
+
+    event_ring_dequeue_ = 0;
+    event_ring_cycle_ = true;
+
+    // ERST 할당
+    erst_ = reinterpret_cast<ERSTEntry*>(AllocAlignedZeroed(sizeof(ERSTEntry), 64));
+    if (!erst_) return MAKE_ERROR(Error::kNoEnoughMemory);
+
+    uintptr_t event_ring_phys = reinterpret_cast<uintptr_t>(event_ring_);
+    erst_->ring_segment_base_lo = static_cast<uint32_t>(event_ring_phys);
+    erst_->ring_segment_base_hi = static_cast<uint32_t>(event_ring_phys >> 32);
+    erst_->ring_segment_size = event_ring_size_;
+
+    // Interrupter 0 설정
+    uintptr_t erst_phys = reinterpret_cast<uintptr_t>(erst_);
+    primary_interrupter_->erstsz = 1;
+    // ERDP
+    primary_interrupter_->erdp_lo = static_cast<uint32_t>(event_ring_phys);
+    primary_interrupter_->erdp_hi = static_cast<uint32_t>(event_ring_phys >> 32);
+    // ERSTBA
+    primary_interrupter_->erstba_lo = static_cast<uint32_t>(erst_phys);
+    primary_interrupter_->erstba_hi = static_cast<uint32_t>(erst_phys >> 32);
+    Log(kInfo, "xHCI: Event Ring @ 0x%016lx (%u TRBs), ERST @ 0x%016lx\n",
+        event_ring_phys, event_ring_size_, erst_phys);
+
+    // Interrupter 0 활성화
+    primary_interrupter_->iman = IMAN_IP | IMAN_IE;
+
+    // 4. 컨트롤러 시작
+    op_->usb_cmd |= USBCMD_RUN_STOP | USBCMD_INTE;
+    while (op_->usb_sts & USBSTS_HCH) {}
+    Log(kInfo, "xHCI: controller running\n");
 
     return MAKE_ERROR(Error::kSuccess);
   }

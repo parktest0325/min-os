@@ -46,5 +46,6 @@ namespace usb::xhci {
     void ConfigurePCI();
     Error ReadCapabilityRegisters();
     Error ResetController();
+    Error StartController();
   };
 }
