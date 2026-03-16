@@ -247,10 +247,9 @@ namespace usb::xhci {
         cmd & 0xffff, (cmd >> 1) & 1, (cmd >> 2) & 1);
   }
 
-  // ---- Ring 헬퍼 ----
 
   volatile PortRegisterSet* XhciController::PortAt(uint8_t port_num) {
-    // port_num은 1-based
+    // port_num은 1 ~ max_ports_
     uintptr_t base = reinterpret_cast<uintptr_t>(op_) + 0x400 + (port_num - 1) * 0x10;
     return reinterpret_cast<volatile PortRegisterSet*>(base);
   }
@@ -323,19 +322,18 @@ namespace usb::xhci {
     }
   }
 
-  // ---- M3: 포트 감지 + Enumeration ----
 
   Error XhciController::ScanPorts() {
     for (uint8_t port = 1; port <= max_ports_; ++port) {
       volatile PortRegisterSet* pr = PortAt(port);
       uint32_t portsc = pr->portsc;
-
+      // PORTSC_CCS: 장치가 물리적으로 연결되어 있다면 set (Read-Only)
       if (!(portsc & PORTSC_CCS)) continue;
 
       Log(kInfo, "xHCI: Port %u connected (PORTSC=0x%08x, Speed=%u)\n",
           port, portsc, PORTSC_Speed(portsc));
 
-      // Port Reset
+      // 1. Port Reset
       pr->portsc = (portsc & ~PORTSC_W1C_BITS) | PORTSC_PR;
       while (!(pr->portsc & PORTSC_PRC)) {}
       // PRC 클리어
