@@ -348,7 +348,7 @@ namespace usb::xhci {
         continue;
       }
 
-      // Enable Slot Command
+      // 2. Enable Slot Command
       PushCommand(0, 0, 0, TRB_SetType(TRB_TYPE_ENABLE_SLOT_CMD));
       TRB* event = WaitEvent();
 
@@ -361,13 +361,13 @@ namespace usb::xhci {
       }
       Log(kInfo, "xHCI: Slot %u enabled\n", slot_id);
 
-      // Address Device
+      // 3. Address Device
       if (auto err = AddressDevice(slot_id, port, speed)) {
         Log(kError, "xHCI: Address Device failed for slot %u: %s\n", slot_id, err.Name());
         continue;
       }
 
-      // GET_DESCRIPTOR
+      // 4. GET_DESCRIPTOR
       if (auto err = GetDescriptor(slot_id)) {
         Log(kError, "xHCI: GET_DESCRIPTOR failed for slot %u: %s\n", slot_id, err.Name());
         continue;
@@ -377,7 +377,7 @@ namespace usb::xhci {
   }
 
   Error XhciController::AddressDevice(uint8_t slot_id, uint8_t port, uint8_t speed) {
-    // Output Device Context 할당
+    // Device Context 생성
     auto* dev_ctx = reinterpret_cast<DeviceContext*>(
         AllocAlignedZeroed(sizeof(DeviceContext), 64));
     if (!dev_ctx) return MAKE_ERROR(Error::kNoEnoughMemory);
@@ -390,7 +390,7 @@ namespace usb::xhci {
         AllocAlignedZeroed(kEp0RingSize * sizeof(TRB), 64));
     if (!ep0_ring) return MAKE_ERROR(Error::kNoEnoughMemory);
 
-    // EP0 Ring의 마지막에 Link TRB
+    // EP0 Ring의 Link TRB
     uintptr_t ep0_ring_phys = reinterpret_cast<uintptr_t>(ep0_ring);
     TRB& link = ep0_ring[kEp0RingSize - 1];
     link.parameter[0] = static_cast<uint32_t>(ep0_ring_phys);

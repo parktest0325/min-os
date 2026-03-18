@@ -16,8 +16,13 @@ namespace usb::xhci {
 
   // Output Device Context (controller가 쓰고 드라이버가 읽음)
   struct DeviceContext {
-    SlotContext slot;
-    EndpointContext ep[31];  // DCI 1-31
+    union {
+      struct {
+        SlotContext slot;
+        EndpointContext ep[31];
+      };
+      uint32_t dci[32][8];  // dci[0]=Slot, dci[1..31]=EP
+    };
   };
   static_assert(sizeof(DeviceContext) == 1024);
 
@@ -32,8 +37,13 @@ namespace usb::xhci {
   // Input Context (Address Device Command에 전달)
   struct InputContext {
     InputControlContext control;
-    SlotContext slot;
-    EndpointContext ep[31];
+    union {
+      struct {
+        SlotContext slot;            // DCI 0
+        EndpointContext ep[31];      // ep[0]=DCI 1, ep[1]=DCI 2, ...
+      };
+      uint32_t dci[32][8];          // dci[0]=Slot, dci[1..31]=EP
+    };
   };
   static_assert(sizeof(InputContext) == 1056);
 
