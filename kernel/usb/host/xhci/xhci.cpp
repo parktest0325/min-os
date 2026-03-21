@@ -448,21 +448,21 @@ namespace usb::xhci {
 
     uintptr_t buf_phys = reinterpret_cast<uintptr_t>(buf);
 
-    // Setup Stage TRB: GET_DESCRIPTOR(Device), wLength=18
-    uint32_t setup_lo = 0x80 | (0x06 << 8) | (0x0100 << 16);  // bmReqType=0x80, bReq=6, wValue=0x0100
+    // Setup TRB: GET_DESCRIPTOR(Device), wLength=18
+    uint32_t setup_lo = 0x80 | (0x06 << 8) | (0x0100 << 16);    // bmReqType=0x80, bReq=6, wValue=0x0100
     uint32_t setup_hi = 0 | (18 << 16);                         // wIndex=0, wLength=18
     PushTransfer(slot_id, setup_lo, setup_hi,
-        8,  // TRB Transfer Length = 8 (Setup 패킷 크기)
+        8,                                                      // TRB Transfer Length = 8 (Setup 패킷 크기)
         TRB_SetType(TRB_TYPE_SETUP_STAGE) | TRB_IDT | SETUP_TRT_IN);
 
-    // Data Stage TRB: 버퍼로 18바이트 수신
+    // Data TRB: 버퍼로 18바이트 수신
     PushTransfer(slot_id,
         static_cast<uint32_t>(buf_phys),
         static_cast<uint32_t>(buf_phys >> 32),
-        18,  // Transfer Length
+        18,                                                     // Transfer Length
         TRB_SetType(TRB_TYPE_DATA_STAGE) | TRB_DIR_IN);
 
-    // Status Stage TRB: zero-length OUT (Data가 IN이었으므로)
+    // Status TRB: zero-length OUT (Data가 IN이었으므로)
     PushTransfer(slot_id, 0, 0, 0,
         TRB_SetType(TRB_TYPE_STATUS_STAGE) | TRB_IOC | TRB_DIR_OUT);
 
