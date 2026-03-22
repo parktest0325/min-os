@@ -1,5 +1,6 @@
 #include "usb/host/xhci/xhci.hpp"
 #include "usb/host/xhci/xhci_context.hpp"
+#include "usb/usb_device.hpp"
 #include "logger.hpp"
 #include <cstdlib>
 #include <cstring>
@@ -367,11 +368,24 @@ namespace usb::xhci {
         continue;
       }
 
-      // 4. GET_DESCRIPTOR
-      if (auto err = GetDescriptor(slot_id)) {
+      // 4. UsbDevice를 통해 GET_DESCRIPTOR + SET_CONFIGURATION
+      usb::UsbDevice dev(this, slot_id, port, speed);
+
+      DeviceDescriptor desc{};
+      if (auto err = dev.GetDescriptor(usb::DESC_TYPE_DEVICE, 0, &desc, sizeof(desc))) {
         Log(kError, "xHCI: GET_DESCRIPTOR failed for slot %u: %s\n", slot_id, err.Name());
         continue;
       }
+      Log(kInfo, "USB Device: VendorID=%04x, ProductID=%04x, Class=%02x, bcdUSB=%04x\n",
+          desc.idVendor, desc.idProduct, desc.bDeviceClass, desc.bcdUSB);
+      Log(kInfo, "  MaxPacketSize0=%u, NumConfigurations=%u\n",
+          desc.bMaxPacketSize0, desc.bNumConfigurations);
+
+      if (auto err = dev.SetConfiguration(1)) {
+        Log(kError, "xHCI: SET_CONFIGURATION failed for slot %u: %s\n", slot_id, err.Name());
+        continue;
+      }
+      Log(kInfo, "xHCI: Slot %u configured\n", slot_id);
     }
     return MAKE_ERROR(Error::kSuccess);
   }
@@ -440,47 +454,49 @@ namespace usb::xhci {
     return MAKE_ERROR(Error::kSuccess);
   }
 
-  Error XhciController::GetDescriptor(uint8_t slot_id) {
-    // 데이터 버퍼 할당
-    auto* buf = reinterpret_cast<DeviceDescriptor*>(
-        AllocAlignedZeroed(sizeof(DeviceDescriptor), 64));
-    if (!buf) return MAKE_ERROR(Error::kNoEnoughMemory);
+  Error XhciController::ControlTransfer(uint8_t slot_id,
+                                         const usb::SetupPacket& setup,
+                                         void* buf, uint16_t len) {
+    // Setup Stage TRB (Immediate Data)
+    uint32_t setup_lo = setup.bmRequestType
+                      | (static_cast<uint32_t>(setup.bRequest) << 8)
+                      | (static_cast<uint32_t>(setup.wValue) << 16);
+    uint32_t setup_hi = setup.wIndex
+                      | (static_cast<uint32_t>(setup.wLength) << 16);
 
-    uintptr_t buf_phys = reinterpret_cast<uintptr_t>(buf);
+    bool has_data = (len > 0 && buf != nullptr);
+    bool is_in = (setup.bmRequestType & 0x80) != 0;
 
-    // Setup TRB: GET_DESCRIPTOR(Device), wLength=18
-    uint32_t setup_lo = 0x80 | (0x06 << 8) | (0x0100 << 16);    // bmReqType=0x80, bReq=6, wValue=0x0100
-    uint32_t setup_hi = 0 | (18 << 16);                         // wIndex=0, wLength=18
-    PushTransfer(slot_id, setup_lo, setup_hi,
-        8,                                                      // TRB Transfer Length = 8 (Setup 패킷 크기)
-        TRB_SetType(TRB_TYPE_SETUP_STAGE) | TRB_IDT | SETUP_TRT_IN);
+    uint32_t trt = has_data ? (is_in ? SETUP_TRT_IN : SETUP_TRT_OUT)
+                            : SETUP_TRT_NO_DATA;
+    PushTransfer(slot_id, setup_lo, setup_hi, 8,
+        TRB_SetType(TRB_TYPE_SETUP_STAGE) | TRB_IDT | trt);
 
-    // Data TRB: 버퍼로 18바이트 수신
-    PushTransfer(slot_id,
-        static_cast<uint32_t>(buf_phys),
-        static_cast<uint32_t>(buf_phys >> 32),
-        18,                                                     // Transfer Length
-        TRB_SetType(TRB_TYPE_DATA_STAGE) | TRB_DIR_IN);
+    // Data Stage TRB (있을 때만)
+    if (has_data) {
+      uintptr_t buf_phys = reinterpret_cast<uintptr_t>(buf);
+      uint32_t dir = is_in ? TRB_DIR_IN : TRB_DIR_OUT;
+      PushTransfer(slot_id,
+          static_cast<uint32_t>(buf_phys),
+          static_cast<uint32_t>(buf_phys >> 32),
+          len, TRB_SetType(TRB_TYPE_DATA_STAGE) | dir);
+    }
 
-    // Status TRB: zero-length OUT (Data가 IN이었으므로)
+    // Status Stage TRB (방향은 Data의 반대)
+    uint32_t status_dir = (!has_data || is_in) ? TRB_DIR_OUT : TRB_DIR_IN;
     PushTransfer(slot_id, 0, 0, 0,
-        TRB_SetType(TRB_TYPE_STATUS_STAGE) | TRB_IOC | TRB_DIR_OUT);
+        TRB_SetType(TRB_TYPE_STATUS_STAGE) | TRB_IOC | status_dir);
 
-    // Doorbell: slot_id, target = 1 (EP0 = DCI 1)
+    // Doorbell: EP0 = DCI 1
     doorbell_base_[slot_id] = 1;
 
     // Transfer Event 대기
     TRB* event = WaitEvent();
     uint8_t cc = TRB_CompletionCode(event->status);
     if (cc != TRB_COMPLETION_SUCCESS && cc != TRB_COMPLETION_SHORT_PKT) {
-      Log(kError, "xHCI: GET_DESCRIPTOR completion code=%u\n", cc);
+      Log(kError, "xHCI: ControlTransfer completion code=%u\n", cc);
       return MAKE_ERROR(Error::kNotImplemented);
     }
-
-    Log(kInfo, "USB Device: VendorID=%04x, ProductID=%04x, Class=%02x, bcdUSB=%04x\n",
-        buf->idVendor, buf->idProduct, buf->bDeviceClass, buf->bcdUSB);
-    Log(kInfo, "  MaxPacketSize0=%u, NumConfigurations=%u\n",
-        buf->bMaxPacketSize0, buf->bNumConfigurations);
 
     return MAKE_ERROR(Error::kSuccess);
   }

@@ -30,4 +30,10 @@ namespace usb::ehci {
         cmd & 0xffff, (cmd >> 1) & 1, (cmd >> 2) & 1);
   }
 
+  Error EhciController::ControlTransfer(uint8_t /*slot_id*/,
+                                         const usb::SetupPacket& /*setup*/,
+                                         void* /*buf*/, uint16_t /*len*/) {
+    return MAKE_ERROR(Error::kNotImplemented);
+  }
+
 }  // namespace usb::ehci

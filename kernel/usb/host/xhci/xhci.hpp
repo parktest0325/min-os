@@ -17,6 +17,9 @@ namespace usb::xhci {
   public:
     XhciController(const pci::Device& dev);
     Error Initialize() override;
+    Error ControlTransfer(uint8_t slot_id,
+                          const usb::SetupPacket& setup,
+                          void* buf, uint16_t len) override;
 
   private:
     const pci::Device& dev_;
@@ -63,9 +66,8 @@ namespace usb::xhci {
     void PushTransfer(uint8_t slot_id, uint32_t param0, uint32_t param1, uint32_t status, uint32_t control);
     TRB* WaitEvent();
 
-    // M3: 포트 감지 + Enumeration
+    // 포트 감지 + Enumeration
     Error ScanPorts();
     Error AddressDevice(uint8_t slot_id, uint8_t port, uint8_t speed);
-    Error GetDescriptor(uint8_t slot_id);
   };
 }
