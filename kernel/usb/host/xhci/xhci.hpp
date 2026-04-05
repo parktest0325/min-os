@@ -46,11 +46,14 @@ namespace usb::xhci {
     // DCBAA
     uint64_t* dcbaa_;
 
-    // 슬롯별 EP0 Transfer Ring 상태
+    // EP별 Transfer Ring 상태
+    struct EPRing {
+      TRB* ring;
+      uint32_t enqueue;
+      bool cycle;
+    };
     struct SlotData {
-      TRB* ep0_ring;
-      uint32_t ep0_enqueue;
-      bool ep0_cycle;
+      EPRing ep[31];  // ep[0]=DCI 1(EP0), ep[1]=DCI 2, ep[2]=DCI 3(EP1 IN), ...
     };
     static constexpr int kMaxSlots = 256;
     SlotData slot_data_[kMaxSlots];
@@ -63,7 +66,7 @@ namespace usb::xhci {
     // Ring 조작
     volatile PortRegisterSet* PortAt(uint8_t port_num);
     void PushCommand(uint32_t param0, uint32_t param1, uint32_t status, uint32_t control);
-    void PushTransfer(uint8_t slot_id, uint32_t param0, uint32_t param1, uint32_t status, uint32_t control);
+    void PushTransfer(uint8_t slot_id, uint8_t dci, uint32_t param0, uint32_t param1, uint32_t status, uint32_t control);
     TRB* WaitEvent();
 
     // 포트 감지 + Enumeration

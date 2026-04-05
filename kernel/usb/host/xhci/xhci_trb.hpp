@@ -26,6 +26,7 @@ namespace usb::xhci {
   constexpr uint8_t TRB_TYPE_LINK             = 6;
   constexpr uint8_t TRB_TYPE_ENABLE_SLOT_CMD  = 9;
   constexpr uint8_t TRB_TYPE_ADDRESS_DEV_CMD  = 11;
+  constexpr uint8_t TRB_TYPE_CONFIGURE_EP_CMD = 12;
   constexpr uint8_t TRB_TYPE_NOOP_CMD         = 23;
   constexpr uint8_t TRB_TYPE_TRANSFER_EVENT   = 32;
   constexpr uint8_t TRB_TYPE_CMD_COMPLETION   = 33;

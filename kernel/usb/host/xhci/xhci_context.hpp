@@ -59,7 +59,13 @@ namespace usb::xhci {
   }
 
   // -- Endpoint Context helpers --
-  constexpr uint8_t EP_TYPE_CONTROL = 4;
+  constexpr uint8_t EP_TYPE_ISOCH_OUT     = 1;
+  constexpr uint8_t EP_TYPE_BULK_OUT      = 2;
+  constexpr uint8_t EP_TYPE_INTERRUPT_OUT = 3;
+  constexpr uint8_t EP_TYPE_CONTROL       = 4;
+  constexpr uint8_t EP_TYPE_ISOCH_IN      = 5;
+  constexpr uint8_t EP_TYPE_BULK_IN       = 6;
+  constexpr uint8_t EP_TYPE_INTERRUPT_IN  = 7;
 
   inline void EP_SetEPType(EndpointContext& ep, uint8_t type) {
     ep.dword[1] = (ep.dword[1] & ~(0x7u << 3)) | ((type & 0x7u) << 3);
@@ -76,6 +82,9 @@ namespace usb::xhci {
   }
   inline void EP_SetAvgTRBLength(EndpointContext& ep, uint16_t len) {
     ep.dword[4] = (ep.dword[4] & ~0xFFFFu) | (len & 0xFFFFu);
+  }
+  inline void EP_SetInterval(EndpointContext& ep, uint8_t interval) {
+    ep.dword[0] = (ep.dword[0] & ~(0xFFu << 16)) | ((interval & 0xFFu) << 16);
   }
 
   // -- USB Device Descriptor --

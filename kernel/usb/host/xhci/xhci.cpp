@@ -277,20 +277,20 @@ namespace usb::xhci {
 
   constexpr uint32_t kEp0RingSize = 16;
 
-  void XhciController::PushTransfer(uint8_t slot_id, uint32_t param0, uint32_t param1, uint32_t status, uint32_t control) {
-    SlotData& sd = slot_data_[slot_id];
-    TRB& trb = sd.ep0_ring[sd.ep0_enqueue];
+  void XhciController::PushTransfer(uint8_t slot_id, uint8_t dci, uint32_t param0, uint32_t param1, uint32_t status, uint32_t control) {
+    auto& ep = slot_data_[slot_id].ep[dci - 1];
+    TRB& trb = ep.ring[ep.enqueue];
     trb.parameter[0] = param0;
     trb.parameter[1] = param1;
     trb.status = status;
-    trb.control = control | (sd.ep0_cycle ? TRB_CYCLE : 0);
+    trb.control = control | (ep.cycle ? TRB_CYCLE : 0);
 
-    ++sd.ep0_enqueue;
-    if (sd.ep0_enqueue == kEp0RingSize - 1) {
-      TRB& link = sd.ep0_ring[sd.ep0_enqueue];
-      link.control = (link.control & ~TRB_CYCLE) | (sd.ep0_cycle ? TRB_CYCLE : 0);
-      sd.ep0_cycle = !sd.ep0_cycle;
-      sd.ep0_enqueue = 0;
+    ++ep.enqueue;
+    if (ep.enqueue == kEp0RingSize - 1) {
+      TRB& link = ep.ring[ep.enqueue];
+      link.control = (link.control & ~TRB_CYCLE) | (ep.cycle ? TRB_CYCLE : 0);
+      ep.cycle = !ep.cycle;
+      ep.enqueue = 0;
     }
   }
 
@@ -411,7 +411,8 @@ namespace usb::xhci {
     link.parameter[1] = static_cast<uint32_t>(ep0_ring_phys >> 32);
     link.control = TRB_SetType(TRB_TYPE_LINK) | LINK_TRB_TOGGLE_CYCLE;
 
-    slot_data_[slot_id] = {ep0_ring, 0, true};
+    slot_data_[slot_id] = {};
+    slot_data_[slot_id].ep[0] = {ep0_ring, 0, true};
 
     // Input Context 구성
     auto* input = reinterpret_cast<InputContext*>(
@@ -469,14 +470,14 @@ namespace usb::xhci {
 
     uint32_t trt = has_data ? (is_in ? SETUP_TRT_IN : SETUP_TRT_OUT)
                             : SETUP_TRT_NO_DATA;
-    PushTransfer(slot_id, setup_lo, setup_hi, 8,
+    PushTransfer(slot_id, 1, setup_lo, setup_hi, 8,
         TRB_SetType(TRB_TYPE_SETUP_STAGE) | TRB_IDT | trt);
 
     // Data Stage TRB (있을 때만)
     if (has_data) {
       uintptr_t buf_phys = reinterpret_cast<uintptr_t>(buf);
       uint32_t dir = is_in ? TRB_DIR_IN : TRB_DIR_OUT;
-      PushTransfer(slot_id,
+      PushTransfer(slot_id, 1,
           static_cast<uint32_t>(buf_phys),
           static_cast<uint32_t>(buf_phys >> 32),
           len, TRB_SetType(TRB_TYPE_DATA_STAGE) | dir);
@@ -484,7 +485,7 @@ namespace usb::xhci {
 
     // Status Stage TRB (방향은 Data의 반대)
     uint32_t status_dir = (!has_data || is_in) ? TRB_DIR_OUT : TRB_DIR_IN;
-    PushTransfer(slot_id, 0, 0, 0,
+    PushTransfer(slot_id, 1, 0, 0, 0,
         TRB_SetType(TRB_TYPE_STATUS_STAGE) | TRB_IOC | status_dir);
 
     // Doorbell: EP0 = DCI 1
